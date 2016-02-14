@@ -26,6 +26,8 @@ import org.pentaho.di.core.row.RowMetaInterface;
 import org.pentaho.di.trans.step.BaseStepData;
 import org.pentaho.di.trans.step.StepDataInterface;
 
+import com.adobe.analytics.client.AnalyticsClient;
+
 /**
  * This class is part of the demo step plug-in implementation.
  * It demonstrates the basics of developing a plug-in step for PDI. 
@@ -50,6 +52,8 @@ public class OmnitureInputData extends BaseStepData implements StepDataInterface
 
 	public RowMetaInterface outputRowMeta;
 	public RowMetaInterface convertRowMeta;
+	public int nrfields;
+	public AnalyticsClient client;
 	
     public OmnitureInputData()
 	{

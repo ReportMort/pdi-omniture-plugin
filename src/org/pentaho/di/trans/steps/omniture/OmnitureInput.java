@@ -23,14 +23,18 @@
 package org.pentaho.di.trans.steps.omniture;
 
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.GregorianCalendar;
 import java.util.List;
 
+import org.pentaho.di.core.Const;
 import org.pentaho.di.core.exception.KettleException;
 import org.pentaho.di.core.row.RowDataUtil;
 import org.pentaho.di.core.row.RowMeta;
 import org.pentaho.di.core.row.RowMetaInterface;
 import org.pentaho.di.core.row.ValueMetaInterface;
+import org.pentaho.di.i18n.BaseMessages;
 import org.pentaho.di.trans.Trans;
 import org.pentaho.di.trans.TransMeta;
 import org.pentaho.di.trans.step.BaseStep;
@@ -38,6 +42,9 @@ import org.pentaho.di.trans.step.StepDataInterface;
 import org.pentaho.di.trans.step.StepInterface;
 import org.pentaho.di.trans.step.StepMeta;
 import org.pentaho.di.trans.step.StepMetaInterface;
+import org.pentaho.di.trans.steps.omniture.OmnitureInputData;
+import org.pentaho.di.trans.steps.omniture.OmnitureInputMeta;
+
 import com.adobe.analytics.client.*;
 import com.adobe.analytics.client.domain.*;
 import com.adobe.analytics.client.methods.*;
@@ -63,6 +70,10 @@ import com.adobe.analytics.client.methods.*;
  */
 
 public class OmnitureInput extends BaseStep implements StepInterface {
+	
+	private static Class<?> PKG = OmnitureInputMeta.class; 
+    private OmnitureInputMeta meta;
+    private OmnitureInputData data;
 
 	/**
 	 * The constructor should simply pass on its arguments to the parent class.
@@ -73,7 +84,8 @@ public class OmnitureInput extends BaseStep implements StepInterface {
 	 * @param t					transformation description
 	 * @param dis				transformation executing
 	 */
-	public OmnitureInput(StepMeta s, StepDataInterface stepDataInterface, int c, TransMeta t, Trans dis) {
+	public OmnitureInput(StepMeta s, StepDataInterface stepDataInterface, 
+			int c, TransMeta t, Trans dis) {
 		super(s, stepDataInterface, c, t, dis);
 	}
 	
@@ -96,13 +108,57 @@ public class OmnitureInput extends BaseStep implements StepInterface {
 	 * @return true if initialization completed successfully, false if there was an error preventing the step from working. 
 	 *  
 	 */
-	public boolean init(StepMetaInterface smi, StepDataInterface sdi) {
-		// Casting to step-specific implementation classes is safe
-		OmnitureInputMeta meta = (OmnitureInputMeta) smi;
-		OmnitureInputData data = (OmnitureInputData) sdi;
+	  /**
+	   * Build an empty row based on the meta-data.
+	   *
+	   * @return
+	   */
+	  public boolean init( StepMetaInterface smi, StepDataInterface sdi ) {
+		
+	    meta = (OmnitureInputMeta) smi;
+	    data = (OmnitureInputData) sdi;
 
-		return super.init(meta, data);
-	}	
+	    if ( super.init( smi, sdi ) ) {
+	      // get total fields in the grid
+	      data.nrfields = meta.getInputFields().length;
+	      // Check if field list is filled
+	      if ( data.nrfields == 0 ) {
+	        log.logError( BaseMessages.getString( PKG, "OmnitureInputDialog.FieldsMissing.DialogMessage" ) );
+	        return false;
+	      }
+	      
+	      // check username
+	      String realUser = environmentSubstitute( meta.getUserName() );
+	      if ( Const.isEmpty( realUser ) ) {
+	        log.logError( BaseMessages.getString( PKG, "OmnitureInput.UsernameMissing.Error" ) );
+	        return false;
+	      }
+	      // check secret
+	      String realSecret = environmentSubstitute( meta.getSecret() );
+	      if ( Const.isEmpty( realSecret ) ) {
+	        log.logError( BaseMessages.getString( PKG, "OmnitureInput.SecretMissing.Error" ) );
+	        return false;
+	      }
+	      // check report suite id
+	      String realReportSuiteId = environmentSubstitute( meta.getReportSuiteId() );
+	      if ( Const.isEmpty( realReportSuiteId ) ) {
+	        log.logError( BaseMessages.getString( PKG, "OmnitureInput.ReportSuiteIdMissing.Error" ) );
+	        return false;
+	      }
+	      try{
+	      data.client = new AnalyticsClientBuilder()
+	    		  .setEndpoint("api2.omniture.com")
+	    		  .authenticateWithSecret(realUser, realSecret)
+	    		  .build();
+	      
+	        return true;
+	      }  catch ( Exception e ) {
+              log.logError( BaseMessages.getString( PKG, "OmnitureInput.Log.ErrorOccurredDuringStepInitialize" ), e );
+          }
+	      return true;
+	    }
+	    return false;
+	  }	
 
 	/**
 	 * Once the transformation starts executing, the processRow() method is called repeatedly
@@ -252,7 +308,7 @@ public class OmnitureInput extends BaseStep implements StepInterface {
 	      }
 	      if ( sendToErrorRow ) {
 	        // Simply add this row to the error row
-	        putError( getInputRowMeta(), outputRowData, 1, errorMessage, null, "SalesforceInput001" );
+	        putError( getInputRowMeta(), outputRowData, 1, errorMessage, null, "OmnitureInput001" );
 	      }
 	    }
 	    
@@ -356,7 +412,7 @@ public class OmnitureInput extends BaseStep implements StepInterface {
 	            // We retrieved all records available here
 	            // maybe we need to query more again ...
 	            if ( log.isDetailed() ) {
-	              logDetailed( BaseMessages.getString( PKG, "SalesforceInput.Log.NeedQueryMore", "" + data.rownr ) );
+	              logDetailed( BaseMessages.getString( PKG, "OmnitureInput.Log.NeedQueryMore", "" + data.rownr ) );
 	            }
 
 	            if ( data.connection.queryMore() ) {
@@ -364,7 +420,7 @@ public class OmnitureInput extends BaseStep implements StepInterface {
 	              int nr = data.connection.getRecordsCount();
 	              data.nrRecords += nr;
 	              if ( log.isDetailed() ) {
-	                logDetailed( BaseMessages.getString( PKG, "SalesforceInput.Log.QueryMoreRetrieved", "" + nr ) );
+	                logDetailed( BaseMessages.getString( PKG, "OmnitureInput.Log.QueryMoreRetrieved", "" + nr ) );
 	              }
 
 	              // We need here to initialize recordIndex
@@ -399,13 +455,13 @@ public class OmnitureInput extends BaseStep implements StepInterface {
 
 	        // DO Trimming!
 	        switch ( meta.getInputFields()[i].getTrimType() ) {
-	          case SalesforceInputField.TYPE_TRIM_LEFT:
+	          case OmnitureInputField.TYPE_TRIM_LEFT:
 	            value = Const.ltrim( value );
 	            break;
-	          case SalesforceInputField.TYPE_TRIM_RIGHT:
+	          case OmnitureInputField.TYPE_TRIM_RIGHT:
 	            value = Const.rtrim( value );
 	            break;
-	          case SalesforceInputField.TYPE_TRIM_BOTH:
+	          case OmnitureInputField.TYPE_TRIM_BOTH:
 	            value = Const.trim( value );
 	            break;
 	          default:
@@ -463,7 +519,7 @@ public class OmnitureInput extends BaseStep implements StepInterface {
 	      data.previousRow = irow == null ? outputRowData : irow.cloneRow( outputRowData ); // copy it to make
 	    } catch ( Exception e ) {
 	      throw new KettleException( BaseMessages
-	        .getString( PKG, "SalesforceInput.Exception.CanNotReadFromSalesforce" ), e );
+	        .getString( PKG, "OmnitureInput.Exception.CanNotReadFromSalesforce" ), e );
 	    }
 
 	    return outputRowData;
