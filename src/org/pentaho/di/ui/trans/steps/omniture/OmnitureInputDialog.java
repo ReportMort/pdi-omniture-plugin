@@ -47,10 +47,12 @@ import org.eclipse.swt.widgets.Group;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Link;
 import org.eclipse.swt.widgets.Listener;
+import org.eclipse.swt.widgets.MessageBox;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.TableItem;
 import org.eclipse.swt.widgets.Text;
 import org.pentaho.di.ui.core.widget.ColumnInfo;
+import org.pentaho.di.ui.core.dialog.ErrorDialog;
 import org.pentaho.di.core.Const;
 import org.pentaho.di.core.Props;
 import org.pentaho.di.core.row.ValueMeta;
@@ -236,7 +238,19 @@ public String open() {
     fdSecret.top = new FormAttachment( wUserName, margin );
     fdSecret.right = new FormAttachment( 100, 0 );
     wSecret.setLayoutData( fdSecret );
-
+    
+    // ReportSuiteId line
+    wReportSuiteId = new LabelTextVar( transMeta, wConnectGroup,
+      BaseMessages.getString( PKG, "OmnitureInputDialog.ReportSuiteId.Label" ),
+      BaseMessages.getString( PKG, "OmnitureInputDialog.ReportSuiteId.Tooltip" ) );
+    props.setLook( wReportSuiteId );
+    wReportSuiteId.addModifyListener( lsMod );
+    fdReportSuiteId = new FormData();
+    fdReportSuiteId.left = new FormAttachment( 0, 0 );
+    fdReportSuiteId.top = new FormAttachment( wSecret, margin );
+    fdReportSuiteId.right = new FormAttachment( 100, 0 );
+    wReportSuiteId.setLayoutData( fdReportSuiteId );
+    
     // Test Omniture connection button
     wTest = new Button( wConnectGroup, SWT.PUSH );
     wTest.setText( BaseMessages.getString( PKG, "OmnitureInputDialog.TestConnection.Label" ) );
@@ -255,18 +269,6 @@ public String open() {
         }
       }
     );
-    
-    // ReportSuiteId line
-    wReportSuiteId = new LabelTextVar( transMeta, wConnectGroup,
-      BaseMessages.getString( PKG, "OmnitureInputDialog.ReportSuiteId.Label" ),
-      BaseMessages.getString( PKG, "OmnitureInputDialog.ReportSuiteId.Tooltip" ) );
-    props.setLook( wReportSuiteId );
-    wReportSuiteId.addModifyListener( lsMod );
-    fdReportSuiteId = new FormData();
-    fdReportSuiteId.left = new FormAttachment( 0, 0 );
-    fdReportSuiteId.top = new FormAttachment( wSecret, margin );
-    fdReportSuiteId.right = new FormAttachment( 100, 0 );
-    wReportSuiteId.setLayoutData( fdReportSuiteId );
 
     fdConnectGroup = new FormData();
     fdConnectGroup.left = new FormAttachment( 0, 0 );
@@ -616,14 +618,52 @@ public String open() {
 
     return stepname;
   }
+  
+  private void testConnection() {
 
-  void testConnection() {
-	// TODO write logic for testing connection with getURLEndpoint
-	AnalyticsClient client = new AnalyticsClientBuilder()
-		    .setEndpoint("api2.omniture.com")
-		    .authenticateWithSecret("kjahsdfkjshdflkajsdh", 
-		    		"dfaslfdkjasdlfkajf")
-		    .build();
+	    boolean successConnection = true;
+	    String msgError = null;
+	    try {
+	      OmnitureInputMeta meta = new OmnitureInputMeta();
+	      getInfo( meta );
+
+	      // get real values
+	      String realUsername = transMeta.environmentSubstitute( meta.getUserName() );
+	      String realSecret = transMeta.environmentSubstitute( meta.getSecret() );
+	      String realReportSuiteId = transMeta.environmentSubstitute( meta.getReportSuiteId() );
+	      
+		  AnalyticsClient client = new AnalyticsClientBuilder()
+				  .setEndpoint("api2.omniture.com")
+				  .authenticateWithSecret(realUsername, realSecret)
+				  .build();
+		  ReportSuiteMethods reportSuiteMethods = new ReportSuiteMethods(client);
+		  CompanyReportSuites reportSuiteIds = new CompanyReportSuites();
+		  reportSuiteIds = reportSuiteMethods.getReportSuites();
+		  for (int i = 0; i < reportSuiteIds.getReportSuites().size(); i++) {
+		  	if(reportSuiteIds.getReportSuites().get(i).getRsid()
+		  			.trim().equals(realReportSuiteId)) {
+		  		successConnection = true;
+		  		break;
+		  	}
+		  }
+	    } catch ( Exception e ) {
+	      successConnection = false;
+	      msgError = e.getMessage();
+	    }
+	    if ( successConnection ) {
+	      MessageBox mb = new MessageBox( shell, SWT.OK | SWT.ICON_INFORMATION );
+	      mb.setMessage( BaseMessages.getString( PKG, "OmnitureInputDialog.Connected.OK", 
+	    		  wUserName.getText(), wReportSuiteId.getText())
+	        + Const.CR );
+	      mb.setText( BaseMessages.getString( PKG, "OmnitureInputDialog.Connected.Title.Ok" ) );
+	      mb.open();
+	    } else {
+	      new ErrorDialog(
+	        shell,
+	        BaseMessages.getString( PKG, "OmnitureInputDialog.Connected.Title.Error" ),
+	        BaseMessages.getString( PKG, "OmnitureInputDialog.Connected.NOK", wUserName.getText() ),
+	        new Exception( msgError ) );
+	    }
   }
 
   void getFields() {

@@ -1,51 +1,0 @@
-AnalyticsClient client = new AnalyticsClientBuilder()	    .setEndpoint("api2.omniture.com")	    .authenticateWithSecret("kjahsdfkjshdflkajsdh", 	    		"dfaslfdkjasdlfkajf")	    .build();	ReportDescription desc = new ReportDescription();
-desc.setReportSuiteID("sdflkj");
-desc.setDateFrom("2016-01-01"); // YYYY-MM-DD
-desc.setDateTo("2016-01-30");
-desc.setDateGranularity(ReportDescriptionDateGranularity.WEEK);
-desc.setMetricIds("pageViews");	
-ReportMethods reportMethods = new ReportMethods(client);
-int reportId = 0;
-ReportResponse response = null;
-try {
-reportId = reportMethods.queue(desc);
-while (response == null) {
-try {
-    response = reportMethods.get(reportId);
-} catch (ApiException e) {
-    if ("report_not_ready".equals(e.getError())) {
-        System.err.println("Report not ready yet.");
-        try {
-			Thread.sleep(3000);
-		} catch (InterruptedException e1) {
-			// TODO Auto-generated catch block
-			e1.printStackTrace();
-		}
-        continue;
-    }
-    throw e;
-}
-}
-} catch (IOException i) {
-System.err.println("Report queuing error.");
-}
-
-/* Get the report */
-Report report = response.getReport();/* Get the report data List<ReportData> reportData = report.getData();for (int j = 0; j < reportData.size(); j++) {	//logBasic(reportData.get(j).getName());	List<Double> counts = reportData.get(j).getCounts();	for (int k = 0; k < counts.size(); k++) 	{		//logBasic(counts.get(k).toString());	}}*/
-Record partialRecord = new Record(report.getMetrics().size() + 1);List<ReportData> dataList = report.getData();List<Record> records = new ArrayList<>();for (ReportData data : dataList) {	Record record = partialRecord.clone();	record.addElements(data);	if (data.getBreakdown() == null) {		record.addMetrics(data);		records.add(record);	}}//https://github.com/Adobe-Marketing-Cloud/analytics-samples/blob/master/export-report/java/src/main/java/com/adobe/analytics/sample/report/ExportReport.javatry (final CSVPrinter printer = new CSVPrinter(System.out, CSVFormat.RFC4180)) {	for (Record record : records) {		if (!record.isComplete()) {			continue;		}		printer.printRecord(record);	}}
-//System.out.println(report.getData().get(1).getName());
-
-/*
-for (int j = 0; j < report.getData().size(); j++) 
-{
-	System.out.print(report.getData().get(j).getName());
-	List<Double> counts = report.getData().get(j).getCounts();
-	for (int k = 0; k < counts.size(); k++) 
-	{
-		System.out.print(" - " + counts.get(k).intValue());
-	}
-	System.out.println("");
-}
-*/
-
-/* Get the report dataRecord partialRecord = new Record(report.getMetrics().size() + 1);final List<Record> records = new ArrayList<>();for (final ReportData data : report.getData()) {	final Record record = partialRecord.clone();	record.addElements(data);	if (data.getBreakdown() == null) {		record.addMetrics(data);		records.add(record);	} else {		records.addAll(flattenReportData(data.getBreakdown(), record));	}}*/
