@@ -90,6 +90,290 @@ public class OmnitureInput extends BaseStep implements StepInterface {
 	}
 	
 	/**
+	 * Once the transformation starts executing, the processRow() method is called repeatedly
+	 * by PDI for as long as it returns true. To indicate that a step has finished processing rows
+	 * this method must call setOutputDone() and return false;
+	 * 
+	 * Steps which process incoming rows typically call getRow() to read a single row from the
+	 * input stream, change or add row content, call putRow() to pass the changed row on 
+	 * and return true. If getRow() returns null, no more rows are expected to come in, 
+	 * and the processRow() implementation calls setOutputDone() and returns false to
+	 * indicate that it is done too.
+	 * 
+	 * Steps which generate rows typically construct a new row Object[] using a call to
+	 * RowDataUtil.allocateRowData(numberOfFields), add row content, and call putRow() to
+	 * pass the new row on. Above process may happen in a loop to generate multiple rows,
+	 * at the end of which processRow() would call setOutputDone() and return false;
+	 * 
+	 * @param smi the step meta interface containing the step settings
+	 * @param sdi the step data interface that should be used to store
+	 * 
+	 * @return true to indicate that the function should be called again, false if the step is done
+	 */
+	public boolean processRow(StepMetaInterface smi, StepDataInterface sdi) throws KettleException {
+
+		// safely cast the step settings (meta) and runtime info (data) to specific implementations 
+		meta = (OmnitureInputMeta) smi;
+		data = (OmnitureInputData) sdi;
+
+		// get incoming row, getRow() potentially blocks waiting for more rows, returns null if no more rows expected
+		Object[] r = getRow(); 
+		
+		// if no more rows are expected, indicate step is finished and processRow() should not be called again
+		if (r == null){
+			setOutputDone();
+			return false;
+		}
+
+		// the "first" flag is inherited from the base step implementation
+		// it is used to guard some processing tasks, like figuring out field indexes
+		// in the row structure that only need to be done once
+		if (first) {
+			first = false;
+			// clone the input row structure and place it in our data object
+			data.outputRowMeta = (RowMetaInterface) getInputRowMeta().clone();
+			// use meta.getFields() to change it, so it reflects the output row structure 
+			meta.getFields(data.outputRowMeta, getStepname(), null, null, this, null, null);
+		}
+
+		// safely add the string "Hello World!" at the end of the output row
+		// the row array will be resized if necessary 
+		Object[] outputRow = RowDataUtil.addValueData(r, data.outputRowMeta.size() - 1, "Hello World!");
+
+		// put the row to the output row stream
+		putRow(data.outputRowMeta, outputRow); 
+
+		// log progress if it is time to to so
+		if (checkFeedback(getLinesRead())) {
+			logBasic("Linenr " + getLinesRead()); // Some basic logging
+		}
+
+		// indicate that processRow() should be called again
+		return true;
+	}
+	
+	/*
+	  public boolean processRow( StepMetaInterface smi, StepDataInterface sdi ) throws KettleException {
+		  
+		    if ( first ) {
+		      first = false;
+
+		      // Create the output row meta-data
+		      data.outputRowMeta = new RowMeta();
+
+		      meta.getFields( data.outputRowMeta, getStepname(), null, null, this, repository, metaStore );
+
+		      // For String to <type> conversions, we allocate a conversion meta data row as well...
+		      //
+		      data.convertRowMeta = data.outputRowMeta.cloneToType( ValueMetaInterface.TYPE_STRING );
+
+		      // Let's query Salesforce
+		      data.connection.query( meta.isSpecifyQuery() );
+
+		      data.limitReached = true;
+		      data.recordcount = data.connection.getQueryResultSize();
+		      if ( data.recordcount > 0 ) {
+		        data.limitReached = false;
+		        data.nrRecords = data.connection.getRecordsCount();
+		      }
+		      if ( log.isDetailed() ) {
+		        logDetailed( BaseMessages.getString( PKG, "SalesforceInput.Log.RecordCount" ) + " : " + data.recordcount );
+		      }
+
+		    }
+
+		    Object[] outputRowData = null;
+
+		    try {
+		      // get one row ...
+		      outputRowData = getOneRow();
+
+		      if ( outputRowData == null ) {
+		        setOutputDone();
+		        return false;
+		      }
+
+		      putRow( data.outputRowMeta, outputRowData ); // copy row to output rowset(s);
+
+		      if ( checkFeedback( getLinesInput() ) ) {
+		        if ( log.isDetailed() ) {
+		          logDetailed( BaseMessages.getString( PKG, "SalesforceInput.log.LineRow", "" + getLinesInput() ) );
+		        }
+		      }
+
+		      data.rownr++;
+		      data.recordIndex++;
+
+		      return true;
+		    } catch ( KettleException e ) {
+		      boolean sendToErrorRow = false;
+		      String errorMessage = null;
+		      if ( getStepMeta().isDoingErrorHandling() ) {
+		        sendToErrorRow = true;
+		        errorMessage = e.toString();
+		      } else {
+		        logError( BaseMessages.getString( PKG, "SalesforceInput.log.Exception", e.getMessage() ) );
+		        logError( Const.getStackTracker( e ) );
+		        setErrors( 1 );
+		        stopAll();
+		        setOutputDone(); // signal end to receiver(s)
+		        return false;
+		      }
+		      if ( sendToErrorRow ) {
+		        // Simply add this row to the error row
+		        putError( getInputRowMeta(), outputRowData, 1, errorMessage, null, "SalesforceInput001" );
+		      }
+		    }
+		    return true;
+		  }
+
+		  private Object[] getOneRow() throws KettleException {
+		    if ( data.limitReached || data.rownr >= data.recordcount ) {
+		      return null;
+		    }
+
+		    // Build an empty row based on the meta-data
+		    Object[] outputRowData = buildEmptyRow();
+
+		    try {
+
+		      // check for limit rows
+		      if ( data.limit > 0 && data.rownr >= data.limit ) {
+		        // User specified limit and we reached it
+		        // We end here
+		        data.limitReached = true;
+		        return null;
+		      } else {
+		        if ( data.rownr >= data.nrRecords || data.finishedRecord ) {
+		          if ( meta.getRecordsFilter() != SalesforceConnectionUtils.RECORDS_FILTER_UPDATED ) {
+		            // We retrieved all records available here
+		            // maybe we need to query more again ...
+		            if ( log.isDetailed() ) {
+		              logDetailed( BaseMessages.getString( PKG, "SalesforceInput.Log.NeedQueryMore", "" + data.rownr ) );
+		            }
+
+		            if ( data.connection.queryMore() ) {
+		              // We returned more result (query is not done yet)
+		              int nr = data.connection.getRecordsCount();
+		              data.nrRecords += nr;
+		              if ( log.isDetailed() ) {
+		                logDetailed( BaseMessages.getString( PKG, "SalesforceInput.Log.QueryMoreRetrieved", "" + nr ) );
+		              }
+
+		              // We need here to initialize recordIndex
+		              data.recordIndex = 0;
+
+		              data.finishedRecord = false;
+		            } else {
+		              // Query is done .. we finished !
+		              return null;
+		            }
+		          }
+		        }
+		      }
+
+		      // Return a record
+		      SalesforceRecordValue srvalue = data.connection.getRecord( data.recordIndex );
+		      data.finishedRecord = srvalue.isAllRecordsProcessed();
+
+		      if ( meta.getRecordsFilter() == SalesforceConnectionUtils.RECORDS_FILTER_DELETED ) {
+		        if ( srvalue.isRecordIndexChanges() ) {
+		          // We have moved forward...
+		          data.recordIndex = srvalue.getRecordIndex();
+		        }
+		        if ( data.finishedRecord && srvalue.getRecordValue() == null ) {
+		          // We processed all records
+		          return null;
+		        }
+		      }
+		      for ( int i = 0; i < data.nrfields; i++ ) {
+		        String value =
+		          data.connection.getRecordValue( srvalue.getRecordValue(), meta.getInputFields()[i].getField() );
+
+		        // DO Trimming!
+		        switch ( meta.getInputFields()[i].getTrimType() ) {
+		          case SalesforceInputField.TYPE_TRIM_LEFT:
+		            value = Const.ltrim( value );
+		            break;
+		          case SalesforceInputField.TYPE_TRIM_RIGHT:
+		            value = Const.rtrim( value );
+		            break;
+		          case SalesforceInputField.TYPE_TRIM_BOTH:
+		            value = Const.trim( value );
+		            break;
+		          default:
+		            break;
+		        }
+
+		        // DO CONVERSIONS...
+		        //
+		        ValueMetaInterface targetValueMeta = data.outputRowMeta.getValueMeta( i );
+		        ValueMetaInterface sourceValueMeta = data.convertRowMeta.getValueMeta( i );
+		        outputRowData[i] = targetValueMeta.convertData( sourceValueMeta, value );
+
+		        // Do we need to repeat this field if it is null?
+		        if ( meta.getInputFields()[i].isRepeated() ) {
+		          if ( data.previousRow != null && Const.isEmpty( value ) ) {
+		            outputRowData[i] = data.previousRow[i];
+		          }
+		        }
+
+		      } // End of loop over fields...
+
+		      int rowIndex = data.nrfields;
+
+		      // See if we need to add the url to the row...
+		      if ( meta.includeTargetURL() && !Const.isEmpty( meta.getTargetURLField() ) ) {
+		        outputRowData[rowIndex++] = data.connection.getURL();
+		      }
+
+		      // See if we need to add the module to the row...
+		      if ( meta.includeModule() && !Const.isEmpty( meta.getModuleField() ) ) {
+		        outputRowData[rowIndex++] = data.connection.getModule();
+		      }
+
+		      // See if we need to add the generated SQL to the row...
+		      if ( meta.includeSQL() && !Const.isEmpty( meta.getSQLField() ) ) {
+		        outputRowData[rowIndex++] = data.connection.getSQL();
+		      }
+
+		      // See if we need to add the server timestamp to the row...
+		      if ( meta.includeTimestamp() && !Const.isEmpty( meta.getTimestampField() ) ) {
+		        outputRowData[rowIndex++] = data.connection.getServerTimestamp();
+		      }
+
+		      // See if we need to add the row number to the row...
+		      if ( meta.includeRowNumber() && !Const.isEmpty( meta.getRowNumberField() ) ) {
+		        outputRowData[rowIndex++] = new Long( data.rownr );
+		      }
+
+		      if ( meta.includeDeletionDate() && !Const.isEmpty( meta.getDeletionDateField() ) ) {
+		        outputRowData[rowIndex++] = srvalue.getDeletionDate();
+		      }
+
+		      RowMetaInterface irow = getInputRowMeta();
+
+		      data.previousRow = irow == null ? outputRowData : irow.cloneRow( outputRowData ); // copy it to make
+		    } catch ( Exception e ) {
+		      throw new KettleException( BaseMessages
+		        .getString( PKG, "SalesforceInput.Exception.CanNotReadFromSalesforce" ), e );
+		    }
+
+		    return outputRowData;
+		  }
+		  */
+	
+	  /**
+	   * Build an empty row based on the meta-data.
+	   *
+	   * @return
+	   */
+	  private Object[] buildEmptyRow() {
+	    Object[] rowData = RowDataUtil.allocateRowData( data.outputRowMeta.size() );
+	    return rowData;
+	  }
+	
+	/**
 	 * This method is called by PDI during transformation startup. 
 	 * 
 	 * It should initialize required for step execution. 
@@ -108,11 +392,6 @@ public class OmnitureInput extends BaseStep implements StepInterface {
 	 * @return true if initialization completed successfully, false if there was an error preventing the step from working. 
 	 *  
 	 */
-	  /**
-	   * Build an empty row based on the meta-data.
-	   *
-	   * @return
-	   */
 	  public boolean init( StepMetaInterface smi, StepDataInterface sdi ) {
 		
 	    meta = (OmnitureInputMeta) smi;
@@ -158,164 +437,7 @@ public class OmnitureInput extends BaseStep implements StepInterface {
 	      return true;
 	    }
 	    return false;
-	  }	
-
-	/**
-	 * Once the transformation starts executing, the processRow() method is called repeatedly
-	 * by PDI for as long as it returns true. To indicate that a step has finished processing rows
-	 * this method must call setOutputDone() and return false;
-	 * 
-	 * Steps which process incoming rows typically call getRow() to read a single row from the
-	 * input stream, change or add row content, call putRow() to pass the changed row on 
-	 * and return true. If getRow() returns null, no more rows are expected to come in, 
-	 * and the processRow() implementation calls setOutputDone() and returns false to
-	 * indicate that it is done too.
-	 * 
-	 * Steps which generate rows typically construct a new row Object[] using a call to
-	 * RowDataUtil.allocateRowData(numberOfFields), add row content, and call putRow() to
-	 * pass the new row on. Above process may happen in a loop to generate multiple rows,
-	 * at the end of which processRow() would call setOutputDone() and return false;
-	 * 
-	 * @param smi the step meta interface containing the step settings
-	 * @param sdi the step data interface that should be used to store
-	 * 
-	 * @return true to indicate that the function should be called again, false if the step is done
-	 */
-	public boolean processRow(StepMetaInterface smi, StepDataInterface sdi) throws KettleException {
-
-		// safely cast the step settings (meta) and runtime info (data) to specific implementations 
-		OmnitureInputMeta meta = (OmnitureInputMeta) smi;
-		OmnitureInputData data = (OmnitureInputData) sdi;
-
-		// get incoming row, getRow() potentially blocks waiting for more rows, returns null if no more rows expected
-		Object[] r = getRow(); 
-		
-		// if no more rows are expected, indicate step is finished and processRow() should not be called again
-		if (r == null){
-			setOutputDone();
-			return false;
-		}
-
-		// the "first" flag is inherited from the base step implementation
-		// it is used to guard some processing tasks, like figuring out field indexes
-		// in the row structure that only need to be done once
-		Report report = new Report();
-		List<Record> records = new ArrayList<>();
-		
-		if (first) {
-		  first = false;
-	      // Create the output row meta-data
-	      data.outputRowMeta = new RowMeta();
-		  // clone the input row structure and place it in our data object
-		  data.outputRowMeta = (RowMetaInterface) getInputRowMeta().clone();
-		  // use meta.getFields() to change it, so it reflects the output row structure 
-		  meta.getFields(data.outputRowMeta, getStepname(), null, null, this, repository, metaStore );
-		  
-	      // Let's query Omniture
-			AnalyticsClient client = new AnalyticsClientBuilder()
-				    .setEndpoint("api2.omniture.com")
-				    .authenticateWithSecret("kjahsdfkjshdflkajsdh", 
-				    		"dfaslfdkjasdlfkajf")
-				    .build();
-			
-			ReportDescription desc = new ReportDescription();
-			desc.setReportSuiteID("sdf");
-			desc.setDateFrom("2015-01-01"); // YYYY-MM-DD
-			desc.setDateTo("2015-01-30");
-			desc.setDateGranularity(ReportDescriptionDateGranularity.WEEK);
-			desc.setMetricIds("pageviews");
-			desc.setElementIds("eVar2");	
-			ReportMethods reportMethods = new ReportMethods(client);
-			int reportId = 0;
-			ReportResponse response = null;
-			try {
-				reportId = reportMethods.queue(desc);
-				while (response == null) {
-				    try {
-				        response = reportMethods.get(reportId);
-				    } catch (ApiException e) {
-				        if ("report_not_ready".equals(e.getError())) {
-				            System.err.println("Report not ready yet.");
-				            try {
-								Thread.sleep(3000);
-							} catch (InterruptedException e1) {
-								// TODO Auto-generated catch block
-								e1.printStackTrace();
-							}
-				            continue;
-				        }
-				        throw e;
-				    }
-				}
-			} catch (IOException i) {
-				System.err.println("Report queuing error.");
-			}
-			
-		    /* Get the report */
-			report = response.getReport();
-
-			records = flattenReportData(report.getData(), 
-					new Record(report.getMetrics().size() + 1));
-			Iterable<String> headers = getHeaders(report);
-			logBasic(headers.toString());
-			// need to figure out how to put on the stream
-			for (Record record : records) {
-				if (!record.isComplete()) {
-					continue;
-				}
-				logBasic(record.toString());
-			}
-		}
-
-		// safely add the string "Hello World!" at the end of the output row
-		// the row array will be resized if necessary 
-		Object[] outputRow = RowDataUtil.addValueData(r, data.outputRowMeta.size() - 1, "H!");
-
-		// put the row to the output row stream
-		putRow(data.outputRowMeta, outputRow); 
-				
-		/*
-	    Object[] outputRowData = null;
-
-	    try {
-	      // get one row ...
-	      outputRowData = getOneRow();
-
-	      if ( report.getData().size() < 1 ) {
-	        setOutputDone();
-	        return false;
-	      }
-
-	      putRow( data.outputRowMeta, outputRowData ); // copy row to output rowset(s);
-
-	      if ( checkFeedback( getLinesInput() ) ) {
-	        if ( log.isDetailed() ) {
-	          logDetailed("detaillog");
-	        }
-	      }
-	      return true;
-	    } catch ( KettleException e ) {
-	      boolean sendToErrorRow = false;
-	      String errorMessage = null;
-	      if ( getStepMeta().isDoingErrorHandling() ) {
-	        sendToErrorRow = true;
-	        errorMessage = e.toString();
-	      } else {
-	        setErrors( 1 );
-	        stopAll();
-	        setOutputDone(); // signal end to receiver(s)
-	        return false;
-	      }
-	      if ( sendToErrorRow ) {
-	        // Simply add this row to the error row
-	        putError( getInputRowMeta(), outputRowData, 1, errorMessage, null, "OmnitureInput001" );
-	      }
-	    }
-	    
-	    */
-	    
-	    return true;
-	}
+	  }
 
 	/**
 	 * This method is called by PDI once the step is done processing. 
@@ -334,11 +456,20 @@ public class OmnitureInput extends BaseStep implements StepInterface {
 	public void dispose(StepMetaInterface smi, StepDataInterface sdi) {
 
 		// Casting to step-specific implementation classes is safe
-		OmnitureInputMeta meta = (OmnitureInputMeta) smi;
-		OmnitureInputData data = (OmnitureInputData) sdi;
+		meta = (OmnitureInputMeta) smi;
+		data = (OmnitureInputData) sdi;
 		
-		super.dispose(meta, data);
-	}
+	    try {
+	        if ( data.outputRowMeta != null ) {
+	          data.outputRowMeta = null;
+	        }
+	        if ( data.convertRowMeta != null ) {
+	          data.convertRowMeta = null;
+	        }
+	    } catch ( Exception e ) { /* Ignore */
+	    }
+	    super.dispose( smi, sdi );
+	  }
 	
 	private static List<Record> flattenReportData(List<ReportData> dataList, Record partialRecord) {
 		final List<Record> records = new ArrayList<>();
@@ -355,7 +486,7 @@ public class OmnitureInput extends BaseStep implements StepInterface {
 		return records;
 	}
 	
-	private static Iterable<String> getHeaders(Report report) {
+	private static List<String> getHeaders(Report report) {
 		final List<String> headers = new ArrayList<>();
 		headers.add("name");
 

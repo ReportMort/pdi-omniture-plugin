@@ -22,11 +22,22 @@
 
 package org.pentaho.di.ui.trans.steps.omniture;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
+
 import com.adobe.analytics.client.*;
 import com.adobe.analytics.client.domain.*;
 import com.adobe.analytics.client.methods.*;
 import org.eclipse.swt.SWT;
+import org.pentaho.di.ui.core.dialog.EnterNumberDialog;
+import org.pentaho.di.ui.core.dialog.EnterTextDialog;
+import org.pentaho.di.ui.core.dialog.PreviewRowsDialog;
+import org.pentaho.di.ui.trans.dialog.TransPreviewProgressDialog;
+import org.pentaho.di.trans.Trans;
+import org.pentaho.di.trans.TransMeta;
+import org.eclipse.swt.graphics.Cursor;
 import org.eclipse.swt.custom.CTabFolder;
 import org.eclipse.swt.custom.CTabItem;
 import org.eclipse.swt.events.ModifyEvent;
@@ -55,9 +66,12 @@ import org.pentaho.di.ui.core.widget.ColumnInfo;
 import org.pentaho.di.ui.core.dialog.ErrorDialog;
 import org.pentaho.di.core.Const;
 import org.pentaho.di.core.Props;
+import org.pentaho.di.core.exception.KettleException;
 import org.pentaho.di.core.row.ValueMeta;
+import org.pentaho.di.core.util.StringUtil;
 import org.pentaho.di.i18n.BaseMessages;
 import org.pentaho.di.trans.TransMeta;
+import org.pentaho.di.trans.TransPreviewFactory;
 import org.pentaho.di.trans.step.BaseStepMeta;
 import org.pentaho.di.trans.step.StepDialogInterface;
 import org.pentaho.di.trans.steps.omniture.OmnitureInputField;
@@ -474,7 +488,11 @@ public String open() {
     wGet.addListener( SWT.Selection, new Listener() {
         @Override
         public void handleEvent( Event e ) {
-          getFields();
+	        Cursor busy = new Cursor( shell.getDisplay(), SWT.CURSOR_WAIT );
+	        shell.setCursor( busy );
+	        getFields();
+	        shell.setCursor( null );
+	        busy.dispose();
         }
       }
     );
@@ -665,20 +683,170 @@ public String open() {
 	        new Exception( msgError ) );
 	    }
   }
-
-  void getFields() {
-	// TODO write logic for actual function
-    if ( null == null ) {
-      return;
-    }
-  }
   
-  private void getPreview() {
-	// TODO write logic for previewing data
-  }
+	private static List<String> getHeaders(Report report) {
+		final List<String> headers = new ArrayList<>();
+		headers.add("name");
 
-  protected void setActive() {
-	// TODO write logic for setting active
+		final ReportData data = report.getData().get(0);
+		if (data.getYear() != null) {
+			headers.add("year");
+		}
+		if (data.getMonth() != null) {
+			headers.add("month");
+		}
+		if (data.getDay() != null) {
+			headers.add("day");
+		}
+		if (data.getHour() != null) {
+			headers.add("hour");
+		}
+		if (data.getMinute() != null) {
+			headers.add("minute");
+		}
+		for (final ReportElement e : report.getElements()) {
+			headers.add(e.getId());
+		}
+		for (final ReportMetric m : report.getMetrics()) {
+			headers.add(m.getId());
+		}
+		return headers;
+	}
+
+  private void getFields() {
+	  
+	    try {
+	      OmnitureInputMeta meta = new OmnitureInputMeta();
+	      getInfo( meta );
+	      // Clear Fields Grid
+	      wFields.removeAll();
+	      // get real values
+	      String realUsername = transMeta.environmentSubstitute( meta.getUserName() );
+	      String realSecret = transMeta.environmentSubstitute( meta.getSecret() );
+	      String realReportSuiteId = transMeta.environmentSubstitute( meta.getReportSuiteId() );
+	      String realStartDate = transMeta.environmentSubstitute( meta.getStartDate() );
+	      String realEndDate = transMeta.environmentSubstitute( meta.getEndDate() );
+	      String realElements = transMeta.environmentSubstitute( meta.getElements() );
+	      String realMetrics = transMeta.environmentSubstitute( meta.getMetrics() );
+	      //String realSegments = transMeta.environmentSubstitute( meta.getSegmentName() );
+	      
+		  AnalyticsClient client = new AnalyticsClientBuilder()
+				  .setEndpoint("api2.omniture.com")
+				  .authenticateWithSecret(realUsername, realSecret)
+				  .build();
+		  
+		  ReportDescription desc = new ReportDescription();
+		  desc.setReportSuiteID(realReportSuiteId);
+		  desc.setDateFrom(realStartDate); 
+		  desc.setDateTo(realEndDate);
+		  desc.setMetricIds(realMetrics);
+		  desc.setDateGranularity(ReportDescriptionDateGranularity.WEEK);
+		  
+		    /*
+		    if(realElements != null) {
+		    	desc.setElementIds(realElements);
+		    }
+		    
+		    if(realSegments != null) {
+		    	//desc.setSegments(realSegments);
+		    }
+		    if(realDateGranularity != null) {
+		        System.out.println(result);
+		    }
+		    */
+		    
+		  ReportMethods reportMethods = new ReportMethods(client);
+		  int reportId = 0;
+		  ReportResponse response = null;
+		  try {
+		  reportId = reportMethods.queue(desc);
+		  while (response == null) {
+		  try {
+		      response = reportMethods.get(reportId);
+		  } catch (ApiException e) {
+		      if ("report_not_ready".equals(e.getError())) {
+		          System.err.println("Report not ready yet.");
+		          try {
+		  			Thread.sleep(3000);
+		  		} catch (InterruptedException e1) {
+		  			// TODO Auto-generated catch block
+		  			e1.printStackTrace();
+		  		}
+		          continue;
+		      }
+		      throw e;
+		  }
+		  }
+		  } catch (IOException i) {
+		  System.err.println("Report queuing error.");
+		  }
+		  /* Get the report */
+		  Report report = response.getReport();
+		  List<String> headerNames = getHeaders(report);
+	      getTableView().table.setItemCount( headerNames.size() );
+	      for (int j = 0; j < headerNames.size(); j++) 
+	      {
+	        TableItem item = getTableView().table.getItem( j );
+	        item.setText( 1, headerNames.get(j));
+	      }
+	      wFields.removeEmptyRows();
+	      wFields.setRowNums();
+	      wFields.optWidth( true );
+	      getInput().setChanged();
+	    } catch ( Exception e ) {
+	      new ErrorDialog(
+	        shell, BaseMessages.getString( PKG, "OmnitureInputMeta.ErrorRetrieveData.DialogTitle" ), BaseMessages
+	          .getString( PKG, "OmnitureInputMeta.ErrorRetrieveData.DialogMessage" ), e );
+	  }
+  }
+ 
+  // Preview the data
+  private void getPreview() {
+    try {
+    	
+      OmnitureInputMeta oneMeta = new OmnitureInputMeta();
+      getInfo( oneMeta );
+
+      // check if the path is given
+
+      TransMeta previewMeta =
+        TransPreviewFactory.generatePreviewTransformation( transMeta, oneMeta, wStepname.getText() );
+
+      EnterNumberDialog numberDialog = new EnterNumberDialog( shell, props.getDefaultPreviewSize(),
+        BaseMessages.getString( PKG, "SalesforceInputDialog.NumberRows.DialogTitle" ),
+        BaseMessages.getString( PKG, "SalesforceInputDialog.NumberRows.DialogMessage" ) );
+      int previewSize = numberDialog.open();
+      if ( previewSize > 0 ) {
+        TransPreviewProgressDialog progressDialog =
+          new TransPreviewProgressDialog(
+            shell, previewMeta, new String[] { wStepname.getText() }, new int[] { previewSize } );
+        progressDialog.open();
+
+        if ( !progressDialog.isCancelled() ) {
+          Trans trans = progressDialog.getTrans();
+          String loggingText = progressDialog.getLoggingText();
+
+          if ( trans.getResult() != null && trans.getResult().getNrErrors() > 0 ) {
+            EnterTextDialog etd =
+              new EnterTextDialog(
+                shell, BaseMessages.getString( PKG, "System.Dialog.PreviewError.Title" ), BaseMessages
+                  .getString( PKG, "System.Dialog.PreviewError.Message" ), loggingText, true );
+            etd.setReadOnly();
+            etd.open();
+          }
+
+          PreviewRowsDialog prd =
+            new PreviewRowsDialog(
+              shell, transMeta, SWT.NONE, wStepname.getText(), progressDialog.getPreviewRowsMeta( wStepname
+                .getText() ), progressDialog.getPreviewRows( wStepname.getText() ), loggingText );
+          prd.open();
+        }
+      }
+    } catch ( Exception e ) {
+      new ErrorDialog( shell, BaseMessages
+        .getString( PKG, "OmnitureInputDialog.ErrorPreviewingData.DialogTitle" ), BaseMessages.getString(
+        PKG, "OmnitureInputDialog.ErrorPreviewingData.DialogMessage" ), e );
+    }
   }
 
 private void getInfo( OmnitureInputMeta in ) {
