@@ -37,6 +37,7 @@ import org.pentaho.di.core.exception.KettleXMLException;
 import org.pentaho.di.core.row.RowMetaInterface;
 import org.pentaho.di.core.row.ValueMeta;
 import org.pentaho.di.core.row.ValueMetaInterface;
+import org.pentaho.di.core.row.value.ValueMetaBase;
 import org.pentaho.di.core.row.value.ValueMetaFactory;
 import org.pentaho.di.core.variables.VariableSpace;
 import org.pentaho.di.core.xml.XMLHandler;
@@ -73,7 +74,7 @@ public class OmnitureInputMeta extends BaseStepMeta implements StepMetaInterface
   private String endDate;
   private String elements;
   private String metrics;
-  private String segmentName;
+  private String segments;
   /** The fields to return... */
   private OmnitureInputField[] inputFields;
   private int nrFields;
@@ -121,12 +122,12 @@ public class OmnitureInputMeta extends BaseStepMeta implements StepMetaInterface
     this.reportSuiteId = reportSuiteId;
   }
 
-  public String getSegmentName() {
-    return segmentName;
+  public String getSegments() {
+    return segments;
   }
 
-  public void setSegmentName( String segmentName ) {
-    this.segmentName = segmentName;
+  public void setSegments( String segments ) {
+    this.segments = segments;
   }
 
   public String getElements() {
@@ -172,42 +173,33 @@ public class OmnitureInputMeta extends BaseStepMeta implements StepMetaInterface
   // set sensible defaults for a new step
   public void setDefault() {
     userName = "username:Company";
-    secret = "123abc456def789ghi012jkl345";
-    reportSuiteId = "Your-Report-Suite-Id";
-    segmentName = "";
+    secret = ""; //"123abc456def789ghi012jkl345";
+    reportSuiteId = "Your Report Suite Id";
     elements = "page";
     metrics = "visits";
     startDate = new SimpleDateFormat( "yyyy-MM-dd" ).format( new Date() );
     endDate = new String( startDate );
-    int nrFields = 0;
-    allocate( nrFields );
-
-    for ( int i = 0; i < nrFields; i++ ) {
-      inputFields[i] = new OmnitureInputField( "field" + ( i + 1 ) );
-    }
-    
+    segments = "";
+    allocate( 0 );
   }
 
   public void getFields( RowMetaInterface r, String name, RowMetaInterface[] info, 
 		                 StepMeta nextStep, VariableSpace space, 
 		                 Repository repository, IMetaStore metaStore ) 
 		                		 throws KettleStepException {
-	    int i;
-	    for ( i = 0; i < inputFields.length; i++ ) {
-	    	
+	    r.clear();
+	    for ( int i = 0; i < inputFields.length; i++ ) {
 	      OmnitureInputField field = inputFields[i];
-
 	      int type = field.getType();
-	      if ( type == ValueMeta.TYPE_NONE ) {
-	        type = ValueMeta.TYPE_STRING;
+	      if ( type == ValueMetaBase.TYPE_NONE ) {
+	        type = ValueMetaBase.TYPE_STRING;
 	      }
 	      try {
-	        ValueMetaInterface v =
-	          ValueMetaFactory.createValueMeta( space.environmentSubstitute( field.getName() ), type );
-	        v.setLength( field.getLength() );
-	        v.setPrecision( field.getPrecision() );
+	        ValueMetaInterface v = ValueMetaFactory.createValueMeta( space.environmentSubstitute( field.getName() ), type );
 	        v.setOrigin( name );
+	        v.setLength( field.getLength() );
 	        v.setConversionMask( field.getFormat() );
+	        v.setPrecision( field.getPrecision() );
 	        v.setDecimalSymbol( field.getDecimalSymbol() );
 	        v.setGroupingSymbol( field.getGroupSymbol() );
 	        v.setCurrencySymbol( field.getCurrencySymbol() );
@@ -216,6 +208,10 @@ public class OmnitureInputMeta extends BaseStepMeta implements StepMetaInterface
 	        throw new KettleStepException( e );
 	      }
 	    }
+  }
+  
+  public void loadXML( Node stepnode, List<DatabaseMeta> databases, IMetaStore metaStore ) throws KettleXMLException {
+	  readData( stepnode );
   }
 
   public Object clone() {
@@ -234,12 +230,6 @@ public class OmnitureInputMeta extends BaseStepMeta implements StepMetaInterface
     return retval;
   }
 
-  private boolean getBooleanAttributeFromNode( Node node, String tag ) {
-    String sValue = XMLHandler.getTagValue( node, tag );
-    return ( sValue != null && sValue.equalsIgnoreCase( "Y" ) );
-
-  }
-
   public String getXML() throws KettleValueException {
 
     StringBuilder retval = new StringBuilder( 800 );
@@ -250,7 +240,7 @@ public class OmnitureInputMeta extends BaseStepMeta implements StepMetaInterface
     retval.append( "    " ).append( XMLHandler.addTagValue( "endDate", endDate ) );
     retval.append( "    " ).append( XMLHandler.addTagValue( "elements", elements ) );
     retval.append( "    " ).append( XMLHandler.addTagValue( "metrics", metrics ) );
-    retval.append( "    " ).append( XMLHandler.addTagValue( "segmentName", segmentName ) );
+    retval.append( "    " ).append( XMLHandler.addTagValue( "segments", segments ) );
     retval.append( "    <fields>" + Const.CR );
     for ( int i = 0; i < inputFields.length; i++ ) {
       OmnitureInputField field = inputFields[i];
@@ -272,7 +262,7 @@ public class OmnitureInputMeta extends BaseStepMeta implements StepMetaInterface
 	      endDate = XMLHandler.getTagValue( stepnode, "endDate" );
 	      elements = XMLHandler.getTagValue( stepnode, "elements" );
 	      metrics = XMLHandler.getTagValue( stepnode, "metrics" );
-	      segmentName = XMLHandler.getTagValue( stepnode, "segmentName" );
+	      segments = XMLHandler.getTagValue( stepnode, "segments" );
 
 	      Node fields = XMLHandler.getSubNode( stepnode, "fields" );
 	      int nrFields = XMLHandler.countNodes( fields, "field" );
@@ -302,7 +292,7 @@ public class OmnitureInputMeta extends BaseStepMeta implements StepMetaInterface
 	      endDate = rep.getStepAttributeString( id_step, "endDate" );
 	      elements = rep.getStepAttributeString( id_step, "elements" );
 	      metrics = rep.getStepAttributeString( id_step, "metrics" );
-	      segmentName = rep.getStepAttributeString( id_step, "segmentName" );
+	      segments = rep.getStepAttributeString( id_step, "segments" );
 
 	      int nrFields = rep.countNrStepAttributes( id_step, "field_name" );
 
@@ -338,11 +328,10 @@ public class OmnitureInputMeta extends BaseStepMeta implements StepMetaInterface
 	      rep.saveStepAttribute( id_transformation, id_step, "endDate", endDate );
 	      rep.saveStepAttribute( id_transformation, id_step, "elements", elements );
 	      rep.saveStepAttribute( id_transformation, id_step, "metrics", metrics );
-	      rep.saveStepAttribute( id_transformation, id_step, "segmentName", segmentName );
+	      rep.saveStepAttribute( id_transformation, id_step, "segments", segments );
 
 	      for ( int i = 0; i < inputFields.length; i++ ) {
 	        OmnitureInputField field = inputFields[i];
-
 	        rep.saveStepAttribute( id_transformation, id_step, i, "field_name", field.getName() );
 	        rep.saveStepAttribute( id_transformation, id_step, i, "field_type", field.getTypeDesc() );
 	        rep.saveStepAttribute( id_transformation, id_step, i, "field_format", field.getFormat() );
@@ -433,4 +422,5 @@ public class OmnitureInputMeta extends BaseStepMeta implements StepMetaInterface
 	  public StepDataInterface getStepData() {
 	    return new OmnitureInputData();
 	  }
+	  
 }

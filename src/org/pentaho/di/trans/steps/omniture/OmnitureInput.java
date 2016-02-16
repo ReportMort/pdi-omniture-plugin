@@ -23,11 +23,8 @@
 package org.pentaho.di.trans.steps.omniture;
 
 import java.io.IOException;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.GregorianCalendar;
-import java.util.List;
 
+import org.apache.commons.collections4.IteratorUtils;
 import org.pentaho.di.core.Const;
 import org.pentaho.di.core.exception.KettleException;
 import org.pentaho.di.core.row.RowDataUtil;
@@ -110,258 +107,103 @@ public class OmnitureInput extends BaseStep implements StepInterface {
 	 * 
 	 * @return true to indicate that the function should be called again, false if the step is done
 	 */
-	public boolean processRow(StepMetaInterface smi, StepDataInterface sdi) throws KettleException {
-
-		// safely cast the step settings (meta) and runtime info (data) to specific implementations 
-		meta = (OmnitureInputMeta) smi;
-		data = (OmnitureInputData) sdi;
-
-		// get incoming row, getRow() potentially blocks waiting for more rows, returns null if no more rows expected
-		Object[] r = getRow(); 
-		
-		// if no more rows are expected, indicate step is finished and processRow() should not be called again
-		if (r == null){
-			setOutputDone();
-			return false;
-		}
-
-		// the "first" flag is inherited from the base step implementation
-		// it is used to guard some processing tasks, like figuring out field indexes
-		// in the row structure that only need to be done once
-		if (first) {
-			first = false;
-			// clone the input row structure and place it in our data object
-			data.outputRowMeta = (RowMetaInterface) getInputRowMeta().clone();
-			// use meta.getFields() to change it, so it reflects the output row structure 
-			meta.getFields(data.outputRowMeta, getStepname(), null, null, this, null, null);
-		}
-
-		// safely add the string "Hello World!" at the end of the output row
-		// the row array will be resized if necessary 
-		Object[] outputRow = RowDataUtil.addValueData(r, data.outputRowMeta.size() - 1, "Hello World!");
-
-		// put the row to the output row stream
-		putRow(data.outputRowMeta, outputRow); 
-
-		// log progress if it is time to to so
-		if (checkFeedback(getLinesRead())) {
-			logBasic("Linenr " + getLinesRead()); // Some basic logging
-		}
-
-		// indicate that processRow() should be called again
-		return true;
-	}
-	
-	/*
 	  public boolean processRow( StepMetaInterface smi, StepDataInterface sdi ) throws KettleException {
 		  
 		    if ( first ) {
 		      first = false;
-
 		      // Create the output row meta-data
 		      data.outputRowMeta = new RowMeta();
-
 		      meta.getFields( data.outputRowMeta, getStepname(), null, null, this, repository, metaStore );
-
 		      // For String to <type> conversions, we allocate a conversion meta data row as well...
-		      //
 		      data.convertRowMeta = data.outputRowMeta.cloneToType( ValueMetaInterface.TYPE_STRING );
-
-		      // Let's query Salesforce
-		      data.connection.query( meta.isSpecifyQuery() );
-
-		      data.limitReached = true;
-		      data.recordcount = data.connection.getQueryResultSize();
-		      if ( data.recordcount > 0 ) {
-		        data.limitReached = false;
-		        data.nrRecords = data.connection.getRecordsCount();
+		      
+		      // get report from Omniture
+		      ReportDescription desc = new ReportDescription();
+		      desc.setReportSuiteID(meta.getReportSuiteId());
+		      desc.setDateFrom(meta.getStartDate());
+		      desc.setDateTo(meta.getEndDate());
+		      desc.setDateGranularity(ReportDescriptionDateGranularity.WEEK);
+		      desc.setMetricIds(meta.getMetrics());	
+		      ReportMethods reportMethods = new ReportMethods(data.client);
+		      ReportResponse reportResponse = null;
+		      try {
+				reportResponse = reportMethods.retrieveReport(desc);
+			  } catch (IOException e) {
+				e.printStackTrace();
 		      }
-		      if ( log.isDetailed() ) {
-		        logDetailed( BaseMessages.getString( PKG, "SalesforceInput.Log.RecordCount" ) + " : " + data.recordcount );
-		      }
-
+		      Report report = reportResponse.getReport();
+		      data.headerNames = report.getHeaders();
+		      data.records = report.getRecords();
 		    }
-
+		      
 		    Object[] outputRowData = null;
-
+		    
 		    try {
-		      // get one row ...
-		      outputRowData = getOneRow();
-
-		      if ( outputRowData == null ) {
-		        setOutputDone();
-		        return false;
-		      }
-
-		      putRow( data.outputRowMeta, outputRowData ); // copy row to output rowset(s);
-
-		      if ( checkFeedback( getLinesInput() ) ) {
-		        if ( log.isDetailed() ) {
-		          logDetailed( BaseMessages.getString( PKG, "SalesforceInput.log.LineRow", "" + getLinesInput() ) );
+		        // get one row if we can
+		        if ( data.records.size()-1 < data.recordIndex ) {
+			          setOutputDone();
+			          return false;
+			    }
+		    	Record record = data.records.get(data.recordIndex);
+		    	outputRowData = prepareRecord(record);
+		        putRow( data.outputRowMeta, outputRowData ); // copy row to output rowset(s);
+		        data.recordIndex++;
+		        return true;
+		      } catch ( KettleException e ) {
+		        boolean sendToErrorRow = false;
+		        String errorMessage = null;
+		        if ( getStepMeta().isDoingErrorHandling() ) {
+		          sendToErrorRow = true;
+		          errorMessage = e.toString();
+		        } else {
+		          logError( BaseMessages.getString( PKG, "OmnitureInput.log.Exception", e.getMessage() ) );
+		          logError( Const.getStackTracker( e ) );
+		          setErrors( 1 );
+		          stopAll();
+		          setOutputDone(); // signal end to receiver(s)
+		          return false;
+		        }
+		        if ( sendToErrorRow ) {
+		          // Simply add this row to the error row
+		          putError( getInputRowMeta(), outputRowData, 1, errorMessage, null, "OmnitureInput001" );
 		        }
 		      }
-
-		      data.rownr++;
-		      data.recordIndex++;
-
 		      return true;
-		    } catch ( KettleException e ) {
-		      boolean sendToErrorRow = false;
-		      String errorMessage = null;
-		      if ( getStepMeta().isDoingErrorHandling() ) {
-		        sendToErrorRow = true;
-		        errorMessage = e.toString();
-		      } else {
-		        logError( BaseMessages.getString( PKG, "SalesforceInput.log.Exception", e.getMessage() ) );
-		        logError( Const.getStackTracker( e ) );
-		        setErrors( 1 );
-		        stopAll();
-		        setOutputDone(); // signal end to receiver(s)
-		        return false;
-		      }
-		      if ( sendToErrorRow ) {
-		        // Simply add this row to the error row
-		        putError( getInputRowMeta(), outputRowData, 1, errorMessage, null, "SalesforceInput001" );
-		      }
 		    }
-		    return true;
-		  }
-
-		  private Object[] getOneRow() throws KettleException {
-		    if ( data.limitReached || data.rownr >= data.recordcount ) {
-		      return null;
-		    }
-
+		  
+		  private Object[] prepareRecord(Record record) throws KettleException {
 		    // Build an empty row based on the meta-data
 		    Object[] outputRowData = buildEmptyRow();
-
 		    try {
-
-		      // check for limit rows
-		      if ( data.limit > 0 && data.rownr >= data.limit ) {
-		        // User specified limit and we reached it
-		        // We end here
-		        data.limitReached = true;
-		        return null;
-		      } else {
-		        if ( data.rownr >= data.nrRecords || data.finishedRecord ) {
-		          if ( meta.getRecordsFilter() != SalesforceConnectionUtils.RECORDS_FILTER_UPDATED ) {
-		            // We retrieved all records available here
-		            // maybe we need to query more again ...
-		            if ( log.isDetailed() ) {
-		              logDetailed( BaseMessages.getString( PKG, "SalesforceInput.Log.NeedQueryMore", "" + data.rownr ) );
-		            }
-
-		            if ( data.connection.queryMore() ) {
-		              // We returned more result (query is not done yet)
-		              int nr = data.connection.getRecordsCount();
-		              data.nrRecords += nr;
-		              if ( log.isDetailed() ) {
-		                logDetailed( BaseMessages.getString( PKG, "SalesforceInput.Log.QueryMoreRetrieved", "" + nr ) );
-		              }
-
-		              // We need here to initialize recordIndex
-		              data.recordIndex = 0;
-
-		              data.finishedRecord = false;
-		            } else {
-		              // Query is done .. we finished !
-		              return null;
-		            }
-		          }
-		        }
-		      }
-
-		      // Return a record
-		      SalesforceRecordValue srvalue = data.connection.getRecord( data.recordIndex );
-		      data.finishedRecord = srvalue.isAllRecordsProcessed();
-
-		      if ( meta.getRecordsFilter() == SalesforceConnectionUtils.RECORDS_FILTER_DELETED ) {
-		        if ( srvalue.isRecordIndexChanges() ) {
-		          // We have moved forward...
-		          data.recordIndex = srvalue.getRecordIndex();
-		        }
-		        if ( data.finishedRecord && srvalue.getRecordValue() == null ) {
-		          // We processed all records
-		          return null;
-		        }
-		      }
 		      for ( int i = 0; i < data.nrfields; i++ ) {
-		        String value =
-		          data.connection.getRecordValue( srvalue.getRecordValue(), meta.getInputFields()[i].getField() );
-
-		        // DO Trimming!
+		    	String value = IteratorUtils.toList(record.iterator()).get(data.headerNames.indexOf(meta.getInputFields()[i].getName()));
+		        // do trimming!
 		        switch ( meta.getInputFields()[i].getTrimType() ) {
-		          case SalesforceInputField.TYPE_TRIM_LEFT:
+		          case OmnitureInputField.TYPE_TRIM_LEFT:
 		            value = Const.ltrim( value );
 		            break;
-		          case SalesforceInputField.TYPE_TRIM_RIGHT:
+		          case OmnitureInputField.TYPE_TRIM_RIGHT:
 		            value = Const.rtrim( value );
 		            break;
-		          case SalesforceInputField.TYPE_TRIM_BOTH:
+		          case OmnitureInputField.TYPE_TRIM_BOTH:
 		            value = Const.trim( value );
 		            break;
 		          default:
 		            break;
 		        }
-
-		        // DO CONVERSIONS...
-		        //
+		        // do conversions
 		        ValueMetaInterface targetValueMeta = data.outputRowMeta.getValueMeta( i );
 		        ValueMetaInterface sourceValueMeta = data.convertRowMeta.getValueMeta( i );
 		        outputRowData[i] = targetValueMeta.convertData( sourceValueMeta, value );
-
-		        // Do we need to repeat this field if it is null?
-		        if ( meta.getInputFields()[i].isRepeated() ) {
-		          if ( data.previousRow != null && Const.isEmpty( value ) ) {
-		            outputRowData[i] = data.previousRow[i];
-		          }
-		        }
-
 		      } // End of loop over fields...
-
-		      int rowIndex = data.nrfields;
-
-		      // See if we need to add the url to the row...
-		      if ( meta.includeTargetURL() && !Const.isEmpty( meta.getTargetURLField() ) ) {
-		        outputRowData[rowIndex++] = data.connection.getURL();
-		      }
-
-		      // See if we need to add the module to the row...
-		      if ( meta.includeModule() && !Const.isEmpty( meta.getModuleField() ) ) {
-		        outputRowData[rowIndex++] = data.connection.getModule();
-		      }
-
-		      // See if we need to add the generated SQL to the row...
-		      if ( meta.includeSQL() && !Const.isEmpty( meta.getSQLField() ) ) {
-		        outputRowData[rowIndex++] = data.connection.getSQL();
-		      }
-
-		      // See if we need to add the server timestamp to the row...
-		      if ( meta.includeTimestamp() && !Const.isEmpty( meta.getTimestampField() ) ) {
-		        outputRowData[rowIndex++] = data.connection.getServerTimestamp();
-		      }
-
-		      // See if we need to add the row number to the row...
-		      if ( meta.includeRowNumber() && !Const.isEmpty( meta.getRowNumberField() ) ) {
-		        outputRowData[rowIndex++] = new Long( data.rownr );
-		      }
-
-		      if ( meta.includeDeletionDate() && !Const.isEmpty( meta.getDeletionDateField() ) ) {
-		        outputRowData[rowIndex++] = srvalue.getDeletionDate();
-		      }
-
 		      RowMetaInterface irow = getInputRowMeta();
-
 		      data.previousRow = irow == null ? outputRowData : irow.cloneRow( outputRowData ); // copy it to make
 		    } catch ( Exception e ) {
 		      throw new KettleException( BaseMessages
-		        .getString( PKG, "SalesforceInput.Exception.CanNotReadFromSalesforce" ), e );
+		        .getString( PKG, "OmnitureInput.Exception.CanNotParseFromOmniture" ), e );
 		    }
-
 		    return outputRowData;
 		  }
-		  */
 	
 	  /**
 	   * Build an empty row based on the meta-data.
@@ -471,189 +313,4 @@ public class OmnitureInput extends BaseStep implements StepInterface {
 	    super.dispose( smi, sdi );
 	  }
 	
-	private static List<Record> flattenReportData(List<ReportData> dataList, Record partialRecord) {
-		final List<Record> records = new ArrayList<>();
-		for (final ReportData data : dataList) {
-			final Record record = partialRecord.clone();
-			record.addElements(data);
-			if (data.getBreakdown() == null) {
-				record.addMetrics(data);
-				records.add(record);
-			} else {
-				records.addAll(flattenReportData(data.getBreakdown(), record));
-			}
-		}
-		return records;
-	}
-	
-	private static List<String> getHeaders(Report report) {
-		final List<String> headers = new ArrayList<>();
-		headers.add("name");
-
-		final ReportData data = report.getData().get(0);
-		if (data.getYear() != null) {
-			headers.add("year");
-		}
-		if (data.getMonth() != null) {
-			headers.add("month");
-		}
-		if (data.getDay() != null) {
-			headers.add("day");
-		}
-		if (data.getHour() != null) {
-			headers.add("hour");
-		}
-		if (data.getMinute() != null) {
-			headers.add("minute");
-		}
-		for (final ReportElement e : report.getElements()) {
-			headers.add(e.getId());
-		}
-		for (final ReportMetric m : report.getMetrics()) {
-			headers.add(m.getId());
-		}
-		return headers;
-	}
-
-	/*
-  private Object[] buildEmptyRow() {
-	    Object[] rowData = RowDataUtil.allocateRowData( records.outputRowMeta.size() );
-	    return rowData;
-	  }
-  
-  private Object[] getOneRow() throws KettleException {
-	    if ( data.limitReached || data.rownr >= data.recordcount ) {
-	      return null;
-	    }
-
-	    // Build an empty row based on the meta-data
-	    Object[] outputRowData = buildEmptyRow();
-
-	    try {
-
-	      // check for limit rows
-	      if ( data.limit > 0 && data.rownr >= data.limit ) {
-	        // User specified limit and we reached it
-	        // We end here
-	        data.limitReached = true;
-	        return null;
-	      } else {
-	        if ( data.rownr >= data.nrRecords || data.finishedRecord ) {
-	          if ( meta.getRecordsFilter() != SalesforceConnectionUtils.RECORDS_FILTER_UPDATED ) {
-	            // We retrieved all records available here
-	            // maybe we need to query more again ...
-	            if ( log.isDetailed() ) {
-	              logDetailed( BaseMessages.getString( PKG, "OmnitureInput.Log.NeedQueryMore", "" + data.rownr ) );
-	            }
-
-	            if ( data.connection.queryMore() ) {
-	              // We returned more result (query is not done yet)
-	              int nr = data.connection.getRecordsCount();
-	              data.nrRecords += nr;
-	              if ( log.isDetailed() ) {
-	                logDetailed( BaseMessages.getString( PKG, "OmnitureInput.Log.QueryMoreRetrieved", "" + nr ) );
-	              }
-
-	              // We need here to initialize recordIndex
-	              data.recordIndex = 0;
-
-	              data.finishedRecord = false;
-	            } else {
-	              // Query is done .. we finished !
-	              return null;
-	            }
-	          }
-	        }
-	      }
-
-	      // Return a record
-	      SalesforceRecordValue srvalue = data.connection.getRecord( data.recordIndex );
-	      data.finishedRecord = srvalue.isAllRecordsProcessed();
-
-	      if ( meta.getRecordsFilter() == SalesforceConnectionUtils.RECORDS_FILTER_DELETED ) {
-	        if ( srvalue.isRecordIndexChanges() ) {
-	          // We have moved forward...
-	          data.recordIndex = srvalue.getRecordIndex();
-	        }
-	        if ( data.finishedRecord && srvalue.getRecordValue() == null ) {
-	          // We processed all records
-	          return null;
-	        }
-	      }
-	      for ( int i = 0; i < data.nrfields; i++ ) {
-	        String value =
-	          data.connection.getRecordValue( srvalue.getRecordValue(), meta.getInputFields()[i].getField() );
-
-	        // DO Trimming!
-	        switch ( meta.getInputFields()[i].getTrimType() ) {
-	          case OmnitureInputField.TYPE_TRIM_LEFT:
-	            value = Const.ltrim( value );
-	            break;
-	          case OmnitureInputField.TYPE_TRIM_RIGHT:
-	            value = Const.rtrim( value );
-	            break;
-	          case OmnitureInputField.TYPE_TRIM_BOTH:
-	            value = Const.trim( value );
-	            break;
-	          default:
-	            break;
-	        }
-
-	        // DO CONVERSIONS...
-	        //
-	        ValueMetaInterface targetValueMeta = data.outputRowMeta.getValueMeta( i );
-	        ValueMetaInterface sourceValueMeta = data.convertRowMeta.getValueMeta( i );
-	        outputRowData[i] = targetValueMeta.convertData( sourceValueMeta, value );
-
-	        // Do we need to repeat this field if it is null?
-	        if ( meta.getInputFields()[i].isRepeated() ) {
-	          if ( data.previousRow != null && Const.isEmpty( value ) ) {
-	            outputRowData[i] = data.previousRow[i];
-	          }
-	        }
-
-	      } // End of loop over fields...
-
-	      int rowIndex = data.nrfields;
-
-	      // See if we need to add the url to the row...
-	      if ( meta.includeTargetURL() && !Const.isEmpty( meta.getTargetURLField() ) ) {
-	        outputRowData[rowIndex++] = data.connection.getURL();
-	      }
-
-	      // See if we need to add the module to the row...
-	      if ( meta.includeModule() && !Const.isEmpty( meta.getModuleField() ) ) {
-	        outputRowData[rowIndex++] = data.connection.getModule();
-	      }
-
-	      // See if we need to add the generated SQL to the row...
-	      if ( meta.includeSQL() && !Const.isEmpty( meta.getSQLField() ) ) {
-	        outputRowData[rowIndex++] = data.connection.getSQL();
-	      }
-
-	      // See if we need to add the server timestamp to the row...
-	      if ( meta.includeTimestamp() && !Const.isEmpty( meta.getTimestampField() ) ) {
-	        outputRowData[rowIndex++] = data.connection.getServerTimestamp();
-	      }
-
-	      // See if we need to add the row number to the row...
-	      if ( meta.includeRowNumber() && !Const.isEmpty( meta.getRowNumberField() ) ) {
-	        outputRowData[rowIndex++] = new Long( data.rownr );
-	      }
-
-	      if ( meta.includeDeletionDate() && !Const.isEmpty( meta.getDeletionDateField() ) ) {
-	        outputRowData[rowIndex++] = srvalue.getDeletionDate();
-	      }
-
-	      RowMetaInterface irow = getInputRowMeta();
-
-	      data.previousRow = irow == null ? outputRowData : irow.cloneRow( outputRowData ); // copy it to make
-	    } catch ( Exception e ) {
-	      throw new KettleException( BaseMessages
-	        .getString( PKG, "OmnitureInput.Exception.CanNotReadFromSalesforce" ), e );
-	    }
-
-	    return outputRowData;
-	  }
-	*/
 }

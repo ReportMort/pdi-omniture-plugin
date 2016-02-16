@@ -23,8 +23,6 @@
 package org.pentaho.di.ui.trans.steps.omniture;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 
 import com.adobe.analytics.client.*;
@@ -51,7 +49,6 @@ import org.eclipse.swt.layout.FormData;
 import org.eclipse.swt.layout.FormLayout;
 import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
-import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Group;
@@ -67,10 +64,8 @@ import org.pentaho.di.ui.core.dialog.ErrorDialog;
 import org.pentaho.di.core.Const;
 import org.pentaho.di.core.Props;
 import org.pentaho.di.core.exception.KettleException;
-import org.pentaho.di.core.row.ValueMeta;
-import org.pentaho.di.core.util.StringUtil;
+import org.pentaho.di.core.row.value.ValueMetaBase;
 import org.pentaho.di.i18n.BaseMessages;
-import org.pentaho.di.trans.TransMeta;
 import org.pentaho.di.trans.TransPreviewFactory;
 import org.pentaho.di.trans.step.BaseStepMeta;
 import org.pentaho.di.trans.step.StepDialogInterface;
@@ -105,9 +100,7 @@ public class OmnitureInputDialog extends BaseStepDialog implements StepDialogInt
   
   private Button wTest;
   private FormData fdTest;
-  private Listener lsTest;
 
-  private Link wlFields;
   private TableView wFields;
 
   private Label wlQuStartDate;
@@ -150,7 +143,6 @@ public class OmnitureInputDialog extends BaseStepDialog implements StepDialogInt
   }
 
   // builds and shows the dialog
-  @SuppressWarnings("deprecation")
 public String open() {
     Shell parent = getParent();
     Display display = parent.getDisplay();
@@ -279,7 +271,11 @@ public String open() {
     wTest.addListener( SWT.Selection, new Listener() {
         @Override
         public void handleEvent( Event e ) {
-          testConnection();
+	        Cursor busy = new Cursor( shell.getDisplay(), SWT.CURSOR_WAIT );
+	        shell.setCursor( busy );
+	        testConnection();
+	        shell.setCursor( null );
+	        busy.dispose();
         }
       }
     );
@@ -506,7 +502,7 @@ public String open() {
           ColumnInfo.COLUMN_TYPE_TEXT, false ),
         new ColumnInfo(
           BaseMessages.getString( PKG, "OmnitureInputDialog.FieldsTable.Type.Column" ),
-          ColumnInfo.COLUMN_TYPE_CCOMBO, ValueMeta.getTypes(), true ),
+          ColumnInfo.COLUMN_TYPE_CCOMBO, ValueMetaBase.getTypes(), true ),
         new ColumnInfo(
           BaseMessages.getString( PKG, "OmnitureInputDialog.FieldsTable.Format.Column" ),
           ColumnInfo.COLUMN_TYPE_FORMAT, 3 ),
@@ -572,7 +568,11 @@ public String open() {
     wPreview.addListener( SWT.Selection, new Listener() {
         @Override
         public void handleEvent( Event ev ) {
-          getPreview();
+	        Cursor busy = new Cursor( shell.getDisplay(), SWT.CURSOR_WAIT );
+	        shell.setCursor( busy );
+	        getPreview();
+	        shell.setCursor( null );
+	        busy.dispose();
         }
       }
     );
@@ -587,7 +587,12 @@ public String open() {
     };
     lsOK = new Listener() {
       public void handleEvent( Event e ) {
-        ok();
+        try {
+			ok();
+		} catch (KettleException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
       }
     };
     wCancel.addListener( SWT.Selection, lsCancel );
@@ -598,7 +603,12 @@ public String open() {
      *************************************************/
     lsDef = new SelectionAdapter() {
       public void widgetDefaultSelected( SelectionEvent e ) {
-        ok();
+        try {
+			ok();
+		} catch (KettleException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
       }
     };
     wStepname.addSelectionListener( lsDef );
@@ -683,35 +693,6 @@ public String open() {
 	        new Exception( msgError ) );
 	    }
   }
-  
-	private static List<String> getHeaders(Report report) {
-		final List<String> headers = new ArrayList<>();
-		headers.add("name");
-
-		final ReportData data = report.getData().get(0);
-		if (data.getYear() != null) {
-			headers.add("year");
-		}
-		if (data.getMonth() != null) {
-			headers.add("month");
-		}
-		if (data.getDay() != null) {
-			headers.add("day");
-		}
-		if (data.getHour() != null) {
-			headers.add("hour");
-		}
-		if (data.getMinute() != null) {
-			headers.add("minute");
-		}
-		for (final ReportElement e : report.getElements()) {
-			headers.add(e.getId());
-		}
-		for (final ReportMetric m : report.getMetrics()) {
-			headers.add(m.getId());
-		}
-		return headers;
-	}
 
   private void getFields() {
 	  
@@ -726,9 +707,9 @@ public String open() {
 	      String realReportSuiteId = transMeta.environmentSubstitute( meta.getReportSuiteId() );
 	      String realStartDate = transMeta.environmentSubstitute( meta.getStartDate() );
 	      String realEndDate = transMeta.environmentSubstitute( meta.getEndDate() );
-	      String realElements = transMeta.environmentSubstitute( meta.getElements() );
+	      //String realElements = transMeta.environmentSubstitute( meta.getElements() );
 	      String realMetrics = transMeta.environmentSubstitute( meta.getMetrics() );
-	      //String realSegments = transMeta.environmentSubstitute( meta.getSegmentName() );
+	      //String realSegments = transMeta.environmentSubstitute( meta.getSegments() );
 	      
 		  AnalyticsClient client = new AnalyticsClientBuilder()
 				  .setEndpoint("api2.omniture.com")
@@ -782,7 +763,7 @@ public String open() {
 		  }
 		  /* Get the report */
 		  Report report = response.getReport();
-		  List<String> headerNames = getHeaders(report);
+		  List<String> headerNames = report.getHeaders();
 	      getTableView().table.setItemCount( headerNames.size() );
 	      for (int j = 0; j < headerNames.size(); j++) 
 	      {
@@ -813,8 +794,8 @@ public String open() {
         TransPreviewFactory.generatePreviewTransformation( transMeta, oneMeta, wStepname.getText() );
 
       EnterNumberDialog numberDialog = new EnterNumberDialog( shell, props.getDefaultPreviewSize(),
-        BaseMessages.getString( PKG, "SalesforceInputDialog.NumberRows.DialogTitle" ),
-        BaseMessages.getString( PKG, "SalesforceInputDialog.NumberRows.DialogMessage" ) );
+        BaseMessages.getString( PKG, "OmnitureInputDialog.NumberRows.DialogTitle" ),
+        BaseMessages.getString( PKG, "OmnitureInputDialog.NumberRows.DialogMessage" ) );
       int previewSize = numberDialog.open();
       if ( previewSize > 0 ) {
         TransPreviewProgressDialog progressDialog =
@@ -860,9 +841,8 @@ private void getInfo( OmnitureInputMeta in ) {
     in.setEndDate( wQuEndDate.getText() );
     in.setElements( wQuElements.getText() );
     in.setMetrics( wQuMetrics.getText() );
-    in.setSegmentName( wQuSegments.getText() );
+    in.setSegments( wQuSegments.getText() );
 
-    /*
     int nrFields = getTableView().nrNonEmpty();
 
     in.allocate( nrFields );
@@ -873,21 +853,17 @@ private void getInfo( OmnitureInputMeta in ) {
       TableItem item = wFields.getNonEmpty( i );
 
       field.setName( item.getText( 1 ) );
-      field.setField( item.getText( 2 ) );
-      field.setType( ValueMeta.getType( item.getText( 4 ) ) );
-      field.setFormat( item.getText( 5 ) );
-      field.setLength( Const.toInt( item.getText( 6 ), -1 ) );
-      field.setPrecision( Const.toInt( item.getText( 7 ), -1 ) );
-      field.setCurrencySymbol( item.getText( 8 ) );
-      field.setDecimalSymbol( item.getText( 9 ) );
-      field.setGroupSymbol( item.getText( 10 ) );
-      field.setTrimType( OmnitureInputField.getTrimTypeByDesc( item.getText( 11 ) ) );
-
-      //CHECKSTYLE:Indentation:OFF
+      field.setType( ValueMetaBase.getType( item.getText( 2 ) ) );
+      field.setFormat( item.getText( 3 ) );
+      field.setLength( Const.toInt( item.getText( 4 ), -1 ) );
+      field.setPrecision( Const.toInt( item.getText( 5 ), -1 ) );
+      field.setCurrencySymbol( item.getText( 6 ) );
+      field.setDecimalSymbol( item.getText( 7 ) );
+      field.setGroupSymbol( item.getText( 8 ) );
+      field.setTrimType( OmnitureInputField.getTrimTypeByDesc( item.getText( 9 ) ) );
+      
       in.getInputFields()[i] = field;
     }
-    */
-
   }
 
   /**
@@ -899,6 +875,11 @@ private void getInfo( OmnitureInputMeta in ) {
     wUserName.setText( Const.NVL( in.getUserName(), "" ) );
     wSecret.setText( Const.NVL( in.getSecret(), "" ) );
     wReportSuiteId.setText( Const.NVL( in.getReportSuiteId(), "" ) );
+    wQuStartDate.setText( Const.NVL( in.getStartDate(), "" ) );
+    wQuEndDate.setText( Const.NVL( in.getEndDate(), "" ) );
+    wQuElements.setText( Const.NVL( in.getElements(), "" ) );
+    wQuMetrics.setText( Const.NVL( in.getMetrics(), "" ) );
+    wQuSegments.setText( Const.NVL( in.getSegments(), "" ) );
     
     if ( log.isDebug() ) {
       logDebug( BaseMessages.getString( PKG, "OmnitureInputDialog.Log.GettingFieldsInfo" ) );
@@ -959,13 +940,16 @@ private void getInfo( OmnitureInputMeta in ) {
 
   private void cancel() {
     stepname = null;
-    getInput().setChanged( backupChanged );
+    input.setChanged( changed );
     dispose();
   }
 
-  // let the meta know about the entered data
-  private void ok() {
-    getInfo( getInput() );
+  private void ok() throws KettleException {
+    if ( Const.isEmpty( wStepname.getText() ) ) {
+      return;
+    }
+    stepname = wStepname.getText();
+    getInfo( input );
     dispose();
   }
 

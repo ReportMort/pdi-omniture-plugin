@@ -22,11 +22,15 @@
 
 package org.pentaho.di.trans.steps.omniture;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.pentaho.di.core.row.RowMetaInterface;
 import org.pentaho.di.trans.step.BaseStepData;
 import org.pentaho.di.trans.step.StepDataInterface;
 
 import com.adobe.analytics.client.AnalyticsClient;
+import com.adobe.analytics.client.domain.Record;
 
 /**
  * This class is part of the demo step plug-in implementation.
@@ -53,11 +57,16 @@ public class OmnitureInputData extends BaseStepData implements StepDataInterface
 	public RowMetaInterface outputRowMeta;
 	public RowMetaInterface convertRowMeta;
 	public int nrfields;
+	public int recordIndex;
 	public AnalyticsClient client;
+	public List<String> headerNames;
+	public List<Record> records;
+	public Object previousRow;
 	
     public OmnitureInputData()
 	{
 		super();
+		recordIndex = 0;
 	}
 }
 	
