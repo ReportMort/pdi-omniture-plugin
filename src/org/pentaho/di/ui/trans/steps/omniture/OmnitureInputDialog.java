@@ -121,8 +121,6 @@ public class OmnitureInputDialog extends BaseStepDialog implements StepDialogInt
   
   private Label wlDateGranularity;
   private CCombo wQuDateGranularity;
-  private FormData fdlDateGranularity;
-  private FormData fdDateGranularity;
 
   private Label wlQuElements;
   private TextVar wQuElements;
@@ -382,19 +380,18 @@ public String open() {
     wlDateGranularity = new Label( wReportGroup, SWT.RIGHT );
     wlDateGranularity.setText( BaseMessages.getString( PKG, "OmnitureInputDialog.DateGranularity.Label" ) );
     props.setLook( wlDateGranularity );
-    fdlDateGranularity = new FormData();
+    FormData fdlDateGranularity = new FormData();
+    fdlDateGranularity.top = new FormAttachment( wQuEndDate, margin );
     fdlDateGranularity.left = new FormAttachment( 0, 0 );
     fdlDateGranularity.right = new FormAttachment( middle, -margin );
-    fdlDateGranularity.top = new FormAttachment( 0, 2 * margin );
     wlDateGranularity.setLayoutData( fdlDateGranularity );
-
     wQuDateGranularity = new CCombo( wReportGroup, SWT.BORDER | SWT.READ_ONLY );
     props.setLook( wQuDateGranularity );
     wQuDateGranularity.addModifyListener( lsMod );
-    fdDateGranularity = new FormData();
-    fdDateGranularity.left = new FormAttachment( middle, 0 );
-    fdDateGranularity.top = new FormAttachment( 0, 2 * margin );
-    fdDateGranularity.right = new FormAttachment( 100, -margin );
+    FormData fdDateGranularity = new FormData();
+    fdDateGranularity.top = new FormAttachment( wQuEndDate, margin );
+    fdDateGranularity.left = new FormAttachment( 0, 0 );
+    fdDateGranularity.right = new FormAttachment( middle, -margin );
     wQuDateGranularity.setLayoutData( fdDateGranularity );
     wQuDateGranularity.setItems( dateGranularityOptions );
 
@@ -403,7 +400,7 @@ public String open() {
     wlQuElements.setText( BaseMessages.getString( PKG, "OmnitureInputDialog.Report.Elements.Label" ) );
     props.setLook( wlQuElements );
     FormData fdlQuElements = new FormData();
-    fdlQuElements.top = new FormAttachment( wQuEndDate, margin );
+    fdlQuElements.top = new FormAttachment( wQuDateGranularity, margin );
     fdlQuElements.left = new FormAttachment( 0, 0 );
     fdlQuElements.right = new FormAttachment( middle, -margin );
     wlQuElements.setLayoutData( fdlQuElements );
@@ -411,9 +408,7 @@ public String open() {
     wQuElements.addModifyListener( lsMod );
     wQuElements.setToolTipText( BaseMessages.getString( PKG, "OmnitureInputDialog.Report.Elements.Tooltip" ) );
     props.setLook( wQuElements );
-
     wQuElementsReference = new Link( wReportGroup, SWT.SINGLE );
-
     wQuElementsReference.setText( BaseMessages.getString( PKG, "OmnitureInputDialog.Report.Reference.Label" ) );
     props.setLook( wQuElementsReference );
     wQuElementsReference.addListener( SWT.Selection, new Listener() {
@@ -422,17 +417,14 @@ public String open() {
         BareBonesBrowserLaunch.openURL( REFERENCE_ELEMENTS_URI );
       }
     } );
-
     wQuElementsReference.pack( true );
-
     FormData fdQuElements = new FormData();
-    fdQuElements.top = new FormAttachment( wQuEndDate, margin );
+    fdQuElements.top = new FormAttachment( wQuDateGranularity, margin );
     fdQuElements.left = new FormAttachment( middle, 0 );
     fdQuElements.right = new FormAttachment( 100, -wQuElementsReference.getBounds().width - margin );
     wQuElements.setLayoutData( fdQuElements );
-
     FormData fdQuElementsReference = new FormData();
-    fdQuElementsReference.top = new FormAttachment( wQuEndDate, margin );
+    fdQuElementsReference.top = new FormAttachment( wQuDateGranularity, margin );
     fdQuElementsReference.left = new FormAttachment( wQuElements, 0 );
     fdQuElementsReference.right = new FormAttachment( 100, 0 );
     wQuElementsReference.setLayoutData( fdQuElementsReference );
@@ -450,7 +442,6 @@ public String open() {
     wQuMetrics.addModifyListener( lsMod );
     wQuMetrics.setToolTipText( BaseMessages.getString( PKG, "OmnitureInputDialog.Report.Metrics.Tooltip" ) );
     props.setLook( wQuMetrics );
-
     wQuMetricsReference = new Link( wReportGroup, SWT.SINGLE );
     wQuMetricsReference.setText( BaseMessages.getString( PKG, "OmnitureInputDialog.Report.Reference.Label" ) );
     props.setLook( wQuMetricsReference );
@@ -460,9 +451,7 @@ public String open() {
         BareBonesBrowserLaunch.openURL( REFERENCE_METRICS_URI );
       }
     } );
-
     wQuMetricsReference.pack( true );
-
     FormData fdQuMetrics = new FormData();
     fdQuMetrics.top = new FormAttachment( wQuElements, margin );
     fdQuMetrics.left = new FormAttachment( middle, 0 );
@@ -488,7 +477,6 @@ public String open() {
     wQuSegments.addModifyListener( lsMod );
     wQuSegments.setToolTipText( BaseMessages.getString( PKG, "OmnitureInputDialog.Report.Segments.Tooltip" ) );
     props.setLook( wQuSegments );
-
     wQuSegmentsReference = new Link( wReportGroup, SWT.SINGLE );
     wQuSegmentsReference.setText( BaseMessages.getString( PKG, "OmnitureInputDialog.Report.Reference.Label" ) );
     props.setLook( wQuSegmentsReference );
@@ -498,15 +486,12 @@ public String open() {
         BareBonesBrowserLaunch.openURL( REFERENCE_SEGMENTS_URI );
       }
     } );
-
     wQuSegmentsReference.pack( true );
-
     FormData fdQuSegments = new FormData();
     fdQuSegments.top = new FormAttachment( wQuMetrics, margin );
     fdQuSegments.left = new FormAttachment( middle, 0 );
     fdQuSegments.right = new FormAttachment( 100, -wQuSegmentsReference.getBounds().width - margin );
     wQuSegments.setLayoutData( fdQuSegments );
-
     FormData fdQuSegmentsReference = new FormData();
     fdQuSegmentsReference.top = new FormAttachment( wQuMetrics, margin );
     fdQuSegmentsReference.left = new FormAttachment( wQuSegments, 0 );
