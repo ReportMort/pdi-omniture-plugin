@@ -23,6 +23,7 @@
 package org.pentaho.di.ui.trans.steps.omniture;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import com.adobe.analytics.client.*;
@@ -38,6 +39,8 @@ import org.pentaho.di.trans.TransMeta;
 import org.eclipse.swt.graphics.Cursor;
 import org.eclipse.swt.custom.CTabFolder;
 import org.eclipse.swt.custom.CTabItem;
+import org.eclipse.swt.custom.CCombo;
+import org.eclipse.swt.events.FocusListener;
 import org.eclipse.swt.events.ModifyEvent;
 import org.eclipse.swt.events.ModifyListener;
 import org.eclipse.swt.events.SelectionAdapter;
@@ -61,6 +64,7 @@ import org.eclipse.swt.widgets.TableItem;
 import org.eclipse.swt.widgets.Text;
 import org.pentaho.di.ui.core.widget.ColumnInfo;
 import org.pentaho.di.ui.core.dialog.ErrorDialog;
+import org.pentaho.di.ui.core.widget.ComboVar;
 import org.pentaho.di.core.Const;
 import org.pentaho.di.core.Props;
 import org.pentaho.di.core.exception.KettleException;
@@ -95,8 +99,14 @@ public class OmnitureInputDialog extends BaseStepDialog implements StepDialogInt
   private Group wReportGroup;
   private FormData fdReportGroup;
   
-  private LabelTextVar wUserName, wSecret, wReportSuiteId;
-  private FormData fdUserName, fdSecret, fdReportSuiteId;
+  private LabelTextVar wUserName, wSecret;
+  private FormData fdUserName, fdSecret;
+  
+  private ComboVar wReportSuiteId;
+  private Label wlReportSuiteId;
+  private FormData fdlReportSuiteId, fdReportSuiteId;
+  private boolean gotReportSuiteIds = false;
+  private boolean getReportSuiteIdsListError = false; /* True if error getting report suite id list */
   
   private Button wTest;
   private FormData fdTest;
@@ -108,6 +118,11 @@ public class OmnitureInputDialog extends BaseStepDialog implements StepDialogInt
 
   private Label wlQuEndDate;
   private TextVar wQuEndDate;
+  
+  private Label wlDateGranularity;
+  private CCombo wQuDateGranularity;
+  private FormData fdlDateGranularity;
+  private FormData fdDateGranularity;
 
   private Label wlQuElements;
   private TextVar wQuElements;
@@ -128,6 +143,8 @@ public class OmnitureInputDialog extends BaseStepDialog implements StepDialogInt
   private ColumnInfo[] colinf;
 
   private ModifyListener lsMod;
+  
+  public static final String[] dateGranularityOptions = { "", "SECONDS", "HOUR", "DAY", "WEEK", "MONTH", "QUARTER", "YEAR" };
 
   static final String REFERENCE_METRICS_URI =
     "https://developers.google.com/analytics/devguides/reporting/core/v3/reference#metrics";
@@ -246,9 +263,16 @@ public String open() {
     wSecret.setLayoutData( fdSecret );
     
     // ReportSuiteId line
-    wReportSuiteId = new LabelTextVar( transMeta, wConnectGroup,
-      BaseMessages.getString( PKG, "OmnitureInputDialog.ReportSuiteId.Label" ),
-      BaseMessages.getString( PKG, "OmnitureInputDialog.ReportSuiteId.Tooltip" ) );
+    wlReportSuiteId = new Label( wConnectGroup, SWT.RIGHT );
+    wlReportSuiteId.setText( BaseMessages.getString( PKG, "OmnitureInputDialog.ReportSuiteId.Label" ) );
+    props.setLook( wlReportSuiteId );
+    fdlReportSuiteId = new FormData();
+    fdlReportSuiteId.left = new FormAttachment( 0, 0 );
+    fdlReportSuiteId.top = new FormAttachment( wSecret, margin );
+    fdlReportSuiteId.right = new FormAttachment( middle, -margin );
+    wlReportSuiteId.setLayoutData( fdlReportSuiteId );
+    wReportSuiteId = new ComboVar( transMeta, wConnectGroup, SWT.BORDER | SWT.READ_ONLY );
+    wReportSuiteId.setEditable( true );
     props.setLook( wReportSuiteId );
     wReportSuiteId.addModifyListener( lsMod );
     fdReportSuiteId = new FormData();
@@ -256,6 +280,23 @@ public String open() {
     fdReportSuiteId.top = new FormAttachment( wSecret, margin );
     fdReportSuiteId.right = new FormAttachment( 100, 0 );
     wReportSuiteId.setLayoutData( fdReportSuiteId );
+    wReportSuiteId.addFocusListener( new FocusListener() {
+      public void focusLost( org.eclipse.swt.events.FocusEvent e ) {
+    	  getReportSuiteIdsListError = false;
+      }
+      public void focusGained( org.eclipse.swt.events.FocusEvent e ) {
+        // check if the login credentials passed and not just had error
+        if ( Const.isEmpty( wUserName.getText() ) || Const.isEmpty( wSecret.getText() )
+          || ( getReportSuiteIdsListError ) ) {
+          return;
+        }
+        Cursor busy = new Cursor( shell.getDisplay(), SWT.CURSOR_WAIT );
+        shell.setCursor( busy );
+        getReportSuiteIdsList();
+        shell.setCursor( null );
+        busy.dispose();
+      }
+    } );
     
     // Test Omniture connection button
     wTest = new Button( wConnectGroup, SWT.PUSH );
@@ -336,6 +377,26 @@ public String open() {
     fdQuEndDate.left = new FormAttachment( middle, 0 );
     fdQuEndDate.right = new FormAttachment( 100, 0 );
     wQuEndDate.setLayoutData( fdQuEndDate );
+    
+    // Report date granularity
+    wlDateGranularity = new Label( wReportGroup, SWT.RIGHT );
+    wlDateGranularity.setText( BaseMessages.getString( PKG, "OmnitureInputDialog.DateGranularity.Label" ) );
+    props.setLook( wlDateGranularity );
+    fdlDateGranularity = new FormData();
+    fdlDateGranularity.left = new FormAttachment( 0, 0 );
+    fdlDateGranularity.right = new FormAttachment( middle, -margin );
+    fdlDateGranularity.top = new FormAttachment( 0, 2 * margin );
+    wlDateGranularity.setLayoutData( fdlDateGranularity );
+
+    wQuDateGranularity = new CCombo( wReportGroup, SWT.BORDER | SWT.READ_ONLY );
+    props.setLook( wQuDateGranularity );
+    wQuDateGranularity.addModifyListener( lsMod );
+    fdDateGranularity = new FormData();
+    fdDateGranularity.left = new FormAttachment( middle, 0 );
+    fdDateGranularity.top = new FormAttachment( 0, 2 * margin );
+    fdDateGranularity.right = new FormAttachment( 100, -margin );
+    wQuDateGranularity.setLayoutData( fdDateGranularity );
+    wQuDateGranularity.setItems( dateGranularityOptions );
 
     // Report elements
     wlQuElements = new Label( wReportGroup, SWT.RIGHT );
@@ -646,20 +707,17 @@ public String open() {
 
     return stepname;
   }
-  
-  private void testConnection() {
 
-	    boolean successConnection = true;
-	    String msgError = null;
-	    try {
+private void getReportSuiteIdsList() {
+    if ( !gotReportSuiteIds ) {
+      String selectedField = wReportSuiteId.getText();
+      wReportSuiteId.removeAll();
+      try {
 	      OmnitureInputMeta meta = new OmnitureInputMeta();
 	      getInfo( meta );
-
 	      // get real values
 	      String realUsername = transMeta.environmentSubstitute( meta.getUserName() );
 	      String realSecret = transMeta.environmentSubstitute( meta.getSecret() );
-	      String realReportSuiteId = transMeta.environmentSubstitute( meta.getReportSuiteId() );
-	      
 		  AnalyticsClient client = new AnalyticsClientBuilder()
 				  .setEndpoint("api2.omniture.com")
 				  .authenticateWithSecret(realUsername, realSecret)
@@ -667,12 +725,48 @@ public String open() {
 		  ReportSuiteMethods reportSuiteMethods = new ReportSuiteMethods(client);
 		  CompanyReportSuites reportSuiteIds = new CompanyReportSuites();
 		  reportSuiteIds = reportSuiteMethods.getReportSuites();
+		  String[] reportsuiteids = new String[reportSuiteIds.getReportSuites().size()];
 		  for (int i = 0; i < reportSuiteIds.getReportSuites().size(); i++) {
-		  	if(reportSuiteIds.getReportSuites().get(i).getRsid()
-		  			.trim().equals(realReportSuiteId)) {
-		  		successConnection = true;
-		  		break;
-		  	}
+			  reportsuiteids[i] = reportSuiteIds.getReportSuites().get(i).getRsid();
+		  }
+          if ( reportsuiteids != null && reportsuiteids.length > 0 ) {
+            // populate Combo
+            wReportSuiteId.setItems( reportsuiteids );
+          }
+          gotReportSuiteIds = true;
+          getReportSuiteIdsListError = false;
+      } catch ( Exception e ) {
+        new ErrorDialog( shell, BaseMessages.getString(
+          PKG, "OmnitureInputDialog.ErrorRetrieveReportSuiteIds.DialogTitle" ), BaseMessages.getString(
+          PKG, "OmnitureInputDialog.ErrorRetrieveData.ErrorRetrieveReportSuiteIds" ), e );
+        getReportSuiteIdsListError = true;
+      } finally {
+        if ( !Const.isEmpty( selectedField ) ) {
+          wReportSuiteId.setText( selectedField );
+        }
+      }
+    }
+  }
+  
+  private void testConnection() {
+
+	    boolean successConnection = false;
+	    String msgError = null;
+	    CompanyReportSuites reportSuiteIds = new CompanyReportSuites();
+	    try {
+	      OmnitureInputMeta meta = new OmnitureInputMeta();
+	      getInfo( meta );
+	      // get real values
+	      String realUsername = transMeta.environmentSubstitute( meta.getUserName() );
+	      String realSecret = transMeta.environmentSubstitute( meta.getSecret() );
+		  AnalyticsClient client = new AnalyticsClientBuilder()
+				  .setEndpoint("api2.omniture.com")
+				  .authenticateWithSecret(realUsername, realSecret)
+				  .build();
+		  ReportSuiteMethods reportSuiteMethods = new ReportSuiteMethods(client);
+		  reportSuiteIds = reportSuiteMethods.getReportSuites();
+		  if(reportSuiteIds.getReportSuites().size() < 1){
+			  successConnection = false;  
 		  }
 	    } catch ( Exception e ) {
 	      successConnection = false;
@@ -681,16 +775,25 @@ public String open() {
 	    if ( successConnection ) {
 	      MessageBox mb = new MessageBox( shell, SWT.OK | SWT.ICON_INFORMATION );
 	      mb.setMessage( BaseMessages.getString( PKG, "OmnitureInputDialog.Connected.OK", 
-	    		  wUserName.getText(), wReportSuiteId.getText())
+	    		  wUserName.getText(), reportSuiteIds.getReportSuites().size())
 	        + Const.CR );
 	      mb.setText( BaseMessages.getString( PKG, "OmnitureInputDialog.Connected.Title.Ok" ) );
 	      mb.open();
 	    } else {
-	      new ErrorDialog(
-	        shell,
-	        BaseMessages.getString( PKG, "OmnitureInputDialog.Connected.Title.Error" ),
-	        BaseMessages.getString( PKG, "OmnitureInputDialog.Connected.NOK", wUserName.getText() ),
-	        new Exception( msgError ) );
+	    	if(msgError == null){
+	  	      MessageBox mb = new MessageBox( shell, SWT.OK | SWT.ICON_INFORMATION );
+		      mb.setMessage( BaseMessages.getString( PKG, "OmnitureInputDialog.Connected.NoReportSuites", 
+		    		  wUserName.getText(), reportSuiteIds.getReportSuites().size())
+		        + Const.CR );
+		      mb.setText( BaseMessages.getString( PKG, "OmnitureInputDialog.Connected.Title.Error" ) );
+		      mb.open();
+	    	} else {
+		      new ErrorDialog(
+		  	        shell,
+		  	        BaseMessages.getString( PKG, "OmnitureInputDialog.Connected.Title.Error" ),
+		  	        BaseMessages.getString( PKG, "OmnitureInputDialog.Connected.NOK", wUserName.getText() ),
+		  	        new Exception( msgError ) );
+		  	    }
 	    }
   }
 
@@ -699,7 +802,7 @@ public String open() {
 	    try {
 	      OmnitureInputMeta meta = new OmnitureInputMeta();
 	      getInfo( meta );
-	      // Clear Fields Grid
+	      // clear the current fields grid
 	      wFields.removeAll();
 	      // get real values
 	      String realUsername = transMeta.environmentSubstitute( meta.getUserName() );
@@ -707,35 +810,45 @@ public String open() {
 	      String realReportSuiteId = transMeta.environmentSubstitute( meta.getReportSuiteId() );
 	      String realStartDate = transMeta.environmentSubstitute( meta.getStartDate() );
 	      String realEndDate = transMeta.environmentSubstitute( meta.getEndDate() );
-	      //String realElements = transMeta.environmentSubstitute( meta.getElements() );
+	      String realDateGranularity = transMeta.environmentSubstitute( meta.getDateGranularity() );
+	      String realElements = transMeta.environmentSubstitute( meta.getElements() );
 	      String realMetrics = transMeta.environmentSubstitute( meta.getMetrics() );
-	      //String realSegments = transMeta.environmentSubstitute( meta.getSegments() );
+	      String realSegments = transMeta.environmentSubstitute( meta.getSegments() );
 	      
+	      // parse lists of elements, metrics and segments
+		    List<ReportDescriptionMetric> descMetrics = new ArrayList<>();
+			for (String id : realMetrics.split(",")) {
+				ReportDescriptionMetric metric = new ReportDescriptionMetric();
+				metric.setId(id);
+				descMetrics.add(metric);
+			}
+			List<ReportDescriptionElement> descElems = new ArrayList<>();
+			for (String id : realElements.split(",")) {
+				ReportDescriptionElement elem = new ReportDescriptionElement();
+				elem.setId(id);
+				descElems.add(elem);
+			}
+			List<ReportDescriptionSegment> descSegments = new ArrayList<>();
+			for (String id : realSegments.split(",")) {
+				ReportDescriptionSegment seg = new ReportDescriptionSegment();
+				seg.setId(id);
+				descSegments.add(seg);
+			}
+			
 		  AnalyticsClient client = new AnalyticsClientBuilder()
 				  .setEndpoint("api2.omniture.com")
 				  .authenticateWithSecret(realUsername, realSecret)
 				  .build();
-		  
 		  ReportDescription desc = new ReportDescription();
 		  desc.setReportSuiteID(realReportSuiteId);
 		  desc.setDateFrom(realStartDate); 
 		  desc.setDateTo(realEndDate);
-		  desc.setMetricIds(realMetrics);
-		  desc.setDateGranularity(ReportDescriptionDateGranularity.WEEK);
-		  
-		    /*
-		    if(realElements != null) {
-		    	desc.setElementIds(realElements);
-		    }
-		    
-		    if(realSegments != null) {
-		    	//desc.setSegments(realSegments);
-		    }
-		    if(realDateGranularity != null) {
-		        System.out.println(result);
-		    }
-		    */
-		    
+		  desc.setMetrics(descMetrics);
+		  desc.setElements(descElems);
+		  desc.setSegments(descSegments);
+		  if(!realDateGranularity.equals("")) {
+			 desc.setDateGranularity(ReportDescriptionDateGranularity.valueOf(realDateGranularity));
+		  }
 		  ReportMethods reportMethods = new ReportMethods(client);
 		  int reportId = 0;
 		  ReportResponse response = null;
@@ -839,6 +952,7 @@ private void getInfo( OmnitureInputMeta in ) {
     in.setReportSuiteId( wReportSuiteId.getText() );
     in.setStartDate( wQuStartDate.getText() );
     in.setEndDate( wQuEndDate.getText() );
+    in.setDateGranularity( wQuDateGranularity.getText() );
     in.setElements( wQuElements.getText() );
     in.setMetrics( wQuMetrics.getText() );
     in.setSegments( wQuSegments.getText() );
@@ -877,6 +991,7 @@ private void getInfo( OmnitureInputMeta in ) {
     wReportSuiteId.setText( Const.NVL( in.getReportSuiteId(), "" ) );
     wQuStartDate.setText( Const.NVL( in.getStartDate(), "" ) );
     wQuEndDate.setText( Const.NVL( in.getEndDate(), "" ) );
+    wQuDateGranularity.setText( Const.NVL( in.getDateGranularity(), "" ) );
     wQuElements.setText( Const.NVL( in.getElements(), "" ) );
     wQuMetrics.setText( Const.NVL( in.getMetrics(), "" ) );
     wQuSegments.setText( Const.NVL( in.getSegments(), "" ) );

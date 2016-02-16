@@ -23,6 +23,8 @@
 package org.pentaho.di.trans.steps.omniture;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.apache.commons.collections4.IteratorUtils;
 import org.pentaho.di.core.Const;
@@ -123,7 +125,29 @@ public class OmnitureInput extends BaseStep implements StepInterface {
 		      desc.setDateFrom(meta.getStartDate());
 		      desc.setDateTo(meta.getEndDate());
 		      desc.setDateGranularity(ReportDescriptionDateGranularity.WEEK);
-		      desc.setMetricIds(meta.getMetrics());	
+		      
+		      // parse lists of elements, metrics and segments
+			    List<ReportDescriptionMetric> descMetrics = new ArrayList<>();
+				for (String id : meta.getMetrics().split(",")) {
+					ReportDescriptionMetric metric = new ReportDescriptionMetric();
+					metric.setId(id);
+					descMetrics.add(metric);
+				}
+				List<ReportDescriptionElement> descElems = new ArrayList<>();
+				for (String id : meta.getElements().split(",")) {
+					ReportDescriptionElement elem = new ReportDescriptionElement();
+					elem.setId(id);
+					descElems.add(elem);
+				}
+				List<ReportDescriptionSegment> descSegments = new ArrayList<>();
+				for (String id : meta.getSegments().split(",")) {
+					ReportDescriptionSegment seg = new ReportDescriptionSegment();
+					seg.setId(id);
+					descSegments.add(seg);
+				}
+			  if(!meta.getDateGranularity().equals("")) {
+			    desc.setDateGranularity(ReportDescriptionDateGranularity.valueOf(meta.getDateGranularity()));
+			  }
 		      ReportMethods reportMethods = new ReportMethods(data.client);
 		      ReportResponse reportResponse = null;
 		      try {

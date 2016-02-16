@@ -72,6 +72,7 @@ public class OmnitureInputMeta extends BaseStepMeta implements StepMetaInterface
   private String reportSuiteId;
   private String startDate;
   private String endDate;
+  private String dateGranularity;
   private String elements;
   private String metrics;
   private String segments;
@@ -162,6 +163,14 @@ public class OmnitureInputMeta extends BaseStepMeta implements StepMetaInterface
     this.endDate = endDate;
   }
   
+  public String getDateGranularity() {
+    return dateGranularity;
+  }
+
+  public void setDateGranularity( String dateGranularity ) {
+    this.dateGranularity = dateGranularity;
+  }
+  
   public void allocate( int nrfields ) {
     inputFields = new OmnitureInputField[nrfields];
   }
@@ -179,6 +188,7 @@ public class OmnitureInputMeta extends BaseStepMeta implements StepMetaInterface
     metrics = "visits";
     startDate = new SimpleDateFormat( "yyyy-MM-dd" ).format( new Date() );
     endDate = new String( startDate );
+    dateGranularity = "DAY";
     segments = "";
     allocate( 0 );
   }
@@ -238,6 +248,7 @@ public class OmnitureInputMeta extends BaseStepMeta implements StepMetaInterface
     retval.append( "    " ).append( XMLHandler.addTagValue( "reportSuiteId", reportSuiteId ) );
     retval.append( "    " ).append( XMLHandler.addTagValue( "startDate", startDate ) );
     retval.append( "    " ).append( XMLHandler.addTagValue( "endDate", endDate ) );
+    retval.append( "    " ).append( XMLHandler.addTagValue( "dateGranularity", dateGranularity ) );
     retval.append( "    " ).append( XMLHandler.addTagValue( "elements", elements ) );
     retval.append( "    " ).append( XMLHandler.addTagValue( "metrics", metrics ) );
     retval.append( "    " ).append( XMLHandler.addTagValue( "segments", segments ) );
@@ -260,6 +271,7 @@ public class OmnitureInputMeta extends BaseStepMeta implements StepMetaInterface
 	      reportSuiteId = XMLHandler.getTagValue( stepnode, "reportSuiteId" );
 	      startDate = XMLHandler.getTagValue( stepnode, "startDate" );
 	      endDate = XMLHandler.getTagValue( stepnode, "endDate" );
+	      dateGranularity = XMLHandler.getTagValue( stepnode, "dateGranularity" );
 	      elements = XMLHandler.getTagValue( stepnode, "elements" );
 	      metrics = XMLHandler.getTagValue( stepnode, "metrics" );
 	      segments = XMLHandler.getTagValue( stepnode, "segments" );
@@ -290,6 +302,7 @@ public class OmnitureInputMeta extends BaseStepMeta implements StepMetaInterface
 	      reportSuiteId = rep.getStepAttributeString( id_step, "reportSuiteId" );
 	      startDate = rep.getStepAttributeString( id_step, "startDate" );
 	      endDate = rep.getStepAttributeString( id_step, "endDate" );
+	      dateGranularity = rep.getStepAttributeString( id_step,  "dateGranularity" );
 	      elements = rep.getStepAttributeString( id_step, "elements" );
 	      metrics = rep.getStepAttributeString( id_step, "metrics" );
 	      segments = rep.getStepAttributeString( id_step, "segments" );
@@ -326,6 +339,7 @@ public class OmnitureInputMeta extends BaseStepMeta implements StepMetaInterface
 	      rep.saveStepAttribute( id_transformation, id_step, "reportSuiteId", reportSuiteId );
 	      rep.saveStepAttribute( id_transformation, id_step, "startDate", startDate );
 	      rep.saveStepAttribute( id_transformation, id_step, "endDate", endDate );
+	      rep.saveStepAttribute( id_transformation, id_step, "dateGranularity", dateGranularity );
 	      rep.saveStepAttribute( id_transformation, id_step, "elements", elements );
 	      rep.saveStepAttribute( id_transformation, id_step, "metrics", metrics );
 	      rep.saveStepAttribute( id_transformation, id_step, "segments", segments );
