@@ -125,7 +125,6 @@ public class OmnitureInput extends BaseStep implements StepInterface {
 		      desc.setDateFrom(meta.getStartDate());
 		      desc.setDateTo(meta.getEndDate());
 		      desc.setDateGranularity(ReportDescriptionDateGranularity.WEEK);
-		      
 		      // parse lists of elements, metrics and segments
 			    List<ReportDescriptionMetric> descMetrics = new ArrayList<>();
 				for (String id : meta.getMetrics().split(",")) {
@@ -133,17 +132,24 @@ public class OmnitureInput extends BaseStep implements StepInterface {
 					metric.setId(id);
 					descMetrics.add(metric);
 				}
-				List<ReportDescriptionElement> descElems = new ArrayList<>();
-				for (String id : meta.getElements().split(",")) {
-					ReportDescriptionElement elem = new ReportDescriptionElement();
-					elem.setId(id);
-					descElems.add(elem);
+				desc.setMetrics(descMetrics);
+				if(!meta.getElements().equals("")){
+					List<ReportDescriptionElement> descElems = new ArrayList<>();
+					for (String id : meta.getElements().split(",")) {
+						ReportDescriptionElement elem = new ReportDescriptionElement();
+						elem.setId(id);
+						descElems.add(elem);
+					}
+					desc.setElements(descElems);
 				}
-				List<ReportDescriptionSegment> descSegments = new ArrayList<>();
-				for (String id : meta.getSegments().split(",")) {
-					ReportDescriptionSegment seg = new ReportDescriptionSegment();
-					seg.setId(id);
-					descSegments.add(seg);
+				if(!meta.getSegments().equals("")){
+					List<ReportDescriptionSegment> descSegments = new ArrayList<>();
+					for (String id : meta.getSegments().split(",")) {
+						ReportDescriptionSegment seg = new ReportDescriptionSegment();
+						seg.setId(id);
+						descSegments.add(seg);
+					}
+					desc.setSegments(descSegments);
 				}
 			  if(!meta.getDateGranularity().equals("")) {
 			    desc.setDateGranularity(ReportDescriptionDateGranularity.valueOf(meta.getDateGranularity()));

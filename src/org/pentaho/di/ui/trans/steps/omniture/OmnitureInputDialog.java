@@ -265,8 +265,8 @@ public String open() {
     wlReportSuiteId.setText( BaseMessages.getString( PKG, "OmnitureInputDialog.ReportSuiteId.Label" ) );
     props.setLook( wlReportSuiteId );
     fdlReportSuiteId = new FormData();
-    fdlReportSuiteId.left = new FormAttachment( 0, 0 );
     fdlReportSuiteId.top = new FormAttachment( wSecret, margin );
+    fdlReportSuiteId.left = new FormAttachment( 0, 0 );
     fdlReportSuiteId.right = new FormAttachment( middle, -margin );
     wlReportSuiteId.setLayoutData( fdlReportSuiteId );
     wReportSuiteId = new ComboVar( transMeta, wConnectGroup, SWT.BORDER | SWT.READ_ONLY );
@@ -274,8 +274,8 @@ public String open() {
     props.setLook( wReportSuiteId );
     wReportSuiteId.addModifyListener( lsMod );
     fdReportSuiteId = new FormData();
-    fdReportSuiteId.left = new FormAttachment( 0, 0 );
     fdReportSuiteId.top = new FormAttachment( wSecret, margin );
+    fdReportSuiteId.left = new FormAttachment( middle, 0 );
     fdReportSuiteId.right = new FormAttachment( 100, 0 );
     wReportSuiteId.setLayoutData( fdReportSuiteId );
     wReportSuiteId.addFocusListener( new FocusListener() {
@@ -390,8 +390,8 @@ public String open() {
     wQuDateGranularity.addModifyListener( lsMod );
     FormData fdDateGranularity = new FormData();
     fdDateGranularity.top = new FormAttachment( wQuEndDate, margin );
-    fdDateGranularity.left = new FormAttachment( 0, 0 );
-    fdDateGranularity.right = new FormAttachment( middle, -margin );
+    fdDateGranularity.left = new FormAttachment( middle, 0 );
+    fdDateGranularity.right = new FormAttachment( 100, 0 );
     wQuDateGranularity.setLayoutData( fdDateGranularity );
     wQuDateGranularity.setItems( dateGranularityOptions );
 
@@ -715,7 +715,7 @@ private void getReportSuiteIdsList() {
 			  reportsuiteids[i] = reportSuiteIds.getReportSuites().get(i).getRsid();
 		  }
           if ( reportsuiteids != null && reportsuiteids.length > 0 ) {
-            // populate Combo
+            // populate combo
             wReportSuiteId.setItems( reportsuiteids );
           }
           gotReportSuiteIds = true;
@@ -735,7 +735,7 @@ private void getReportSuiteIdsList() {
   
   private void testConnection() {
 
-	    boolean successConnection = false;
+	    boolean successConnection = true;
 	    String msgError = null;
 	    CompanyReportSuites reportSuiteIds = new CompanyReportSuites();
 	    try {
@@ -799,26 +799,6 @@ private void getReportSuiteIdsList() {
 	      String realElements = transMeta.environmentSubstitute( meta.getElements() );
 	      String realMetrics = transMeta.environmentSubstitute( meta.getMetrics() );
 	      String realSegments = transMeta.environmentSubstitute( meta.getSegments() );
-	      
-	      // parse lists of elements, metrics and segments
-		    List<ReportDescriptionMetric> descMetrics = new ArrayList<>();
-			for (String id : realMetrics.split(",")) {
-				ReportDescriptionMetric metric = new ReportDescriptionMetric();
-				metric.setId(id);
-				descMetrics.add(metric);
-			}
-			List<ReportDescriptionElement> descElems = new ArrayList<>();
-			for (String id : realElements.split(",")) {
-				ReportDescriptionElement elem = new ReportDescriptionElement();
-				elem.setId(id);
-				descElems.add(elem);
-			}
-			List<ReportDescriptionSegment> descSegments = new ArrayList<>();
-			for (String id : realSegments.split(",")) {
-				ReportDescriptionSegment seg = new ReportDescriptionSegment();
-				seg.setId(id);
-				descSegments.add(seg);
-			}
 			
 		  AnalyticsClient client = new AnalyticsClientBuilder()
 				  .setEndpoint("api2.omniture.com")
@@ -828,9 +808,32 @@ private void getReportSuiteIdsList() {
 		  desc.setReportSuiteID(realReportSuiteId);
 		  desc.setDateFrom(realStartDate); 
 		  desc.setDateTo(realEndDate);
-		  desc.setMetrics(descMetrics);
-		  desc.setElements(descElems);
-		  desc.setSegments(descSegments);
+	      // parse lists of elements, metrics and segments
+		    List<ReportDescriptionMetric> descMetrics = new ArrayList<>();
+			for (String id : realMetrics.split(",")) {
+				ReportDescriptionMetric metric = new ReportDescriptionMetric();
+				metric.setId(id);
+				descMetrics.add(metric);
+			}
+			desc.setMetrics(descMetrics);
+			if(!realElements.equals("")){
+				List<ReportDescriptionElement> descElems = new ArrayList<>();
+				for (String id : realElements.split(",")) {
+					ReportDescriptionElement elem = new ReportDescriptionElement();
+					elem.setId(id);
+					descElems.add(elem);
+				}
+				desc.setElements(descElems);
+			}
+			if(!realSegments.equals("")){
+				List<ReportDescriptionSegment> descSegments = new ArrayList<>();
+				for (String id : realSegments.split(",")) {
+					ReportDescriptionSegment seg = new ReportDescriptionSegment();
+					seg.setId(id);
+					descSegments.add(seg);
+				}
+				desc.setSegments(descSegments);
+			}
 		  if(!realDateGranularity.equals("")) {
 			 desc.setDateGranularity(ReportDescriptionDateGranularity.valueOf(realDateGranularity));
 		  }
