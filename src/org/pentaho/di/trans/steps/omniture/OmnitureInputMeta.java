@@ -59,7 +59,7 @@ import org.pentaho.metastore.api.IMetaStore;
 import org.w3c.dom.Node;
 
 @SuppressWarnings("deprecation")
-@Step(id = "OmnitureInputStep", i18nPackageName = "org.pentaho.di.trans.steps.omniture", name = "OmnitureInput.TypeLongDesc.OmnitureInput", description = "OmnitureInput.TypeTooltipDesc.OmnitureInput", categoryDescription = "i18n:org.pentaho.di.trans.step:BaseStep.Category.Input", image = "OmnitureInput.svg", documentationUrl = "http://wiki.pentaho.com/display/EAI/SalesForce+Input")
+@Step(id = "OmnitureInputStep", i18nPackageName = "org.pentaho.di.trans.steps.omniture", name = "OmnitureInput.TypeLongDesc.OmnitureInput", description = "OmnitureInput.TypeTooltipDesc.OmnitureInput", categoryDescription = "i18n:org.pentaho.di.trans.step:BaseStep.Category.Input", image = "OmnitureInput.svg", documentationUrl = "http://wiki.pentaho.com")
 public class OmnitureInputMeta extends BaseStepMeta implements StepMetaInterface {
 
   private static Class<?> PKG = OmnitureInputMeta.class; // for i18n purposes

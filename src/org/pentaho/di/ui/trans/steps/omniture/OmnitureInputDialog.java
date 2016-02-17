@@ -145,11 +145,11 @@ public class OmnitureInputDialog extends BaseStepDialog implements StepDialogInt
   public static final String[] dateGranularityOptions = { "", "SECONDS", "HOUR", "DAY", "WEEK", "MONTH", "QUARTER", "YEAR" };
 
   static final String REFERENCE_METRICS_URI =
-    "https://developers.google.com/analytics/devguides/reporting/core/v3/reference#metrics";
+    "https://marketing.adobe.com/developer/documentation/analytics-reporting-1-4/metrics";
   static final String REFERENCE_ELEMENTS_URI =
-    "https://developers.google.com/analytics/devguides/reporting/core/v3/reference#elements";
+    "https://marketing.adobe.com/developer/documentation/analytics-reporting-1-4/elements";
   static final String REFERENCE_SEGMENTS_URI =
-    "https://developers.google.com/analytics/devguides/reporting/core/v3/reference#segment";
+    "https://marketing.adobe.com/resources/help/en_US/analytics/segment";
   
   // constructor
   public OmnitureInputDialog( Shell parent, Object in, TransMeta transMeta, String sname ) {
