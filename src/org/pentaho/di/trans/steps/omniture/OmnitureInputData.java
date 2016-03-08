@@ -67,6 +67,8 @@ public class OmnitureInputData extends BaseStepData implements StepDataInterface
 	{
 		super();
 		recordIndex = 0;
+		headerNames = new ArrayList<String>();
+		records = new ArrayList<Record>();
 	}
 }
 	

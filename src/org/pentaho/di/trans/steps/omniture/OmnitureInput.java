@@ -124,7 +124,6 @@ public class OmnitureInput extends BaseStep implements StepInterface {
 		      desc.setReportSuiteID(meta.getReportSuiteId());
 		      desc.setDateFrom(meta.getStartDate());
 		      desc.setDateTo(meta.getEndDate());
-		      desc.setDateGranularity(ReportDescriptionDateGranularity.WEEK);
 		      // parse lists of elements, metrics and segments
 			    List<ReportDescriptionMetric> descMetrics = new ArrayList<>();
 				for (String id : meta.getMetrics().split(",")) {
