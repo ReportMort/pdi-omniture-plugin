@@ -124,7 +124,8 @@ public class OmnitureInput extends BaseStep implements StepInterface {
 		      desc.setReportSuiteID(meta.getReportSuiteId());
 		      desc.setDateFrom(meta.getStartDate());
 		      desc.setDateTo(meta.getEndDate());
-		      // parse lists of elements, metrics and segments
+		      
+		      // parse lists of elements, metrics
 			    List<ReportDescriptionMetric> descMetrics = new ArrayList<>();
 				for (String id : meta.getMetrics().split(",")) {
 					ReportDescriptionMetric metric = new ReportDescriptionMetric();
@@ -132,16 +133,15 @@ public class OmnitureInput extends BaseStep implements StepInterface {
 					descMetrics.add(metric);
 				}
 				desc.setMetrics(descMetrics);
-				if(!meta.getElements().equals("")){
-					List<ReportDescriptionElement> descElems = new ArrayList<>();
-					for (String id : meta.getElements().split(",")) {
-						ReportDescriptionElement elem = new ReportDescriptionElement();
-						elem.setId(id);
-						descElems.add(elem);
-					}
-					desc.setElements(descElems);
+				List<ReportDescriptionElement> descElems = new ArrayList<>();
+				for (String id : meta.getElements().split(",")) {
+					ReportDescriptionElement elem = new ReportDescriptionElement();
+					elem.setId(id);
+					descElems.add(elem);
 				}
-				if(!meta.getSegments().equals("")){
+				desc.setElements(descElems);
+				
+				if ( meta.getSegments() != null && !meta.getSegments().equals("") ){
 					List<ReportDescriptionSegment> descSegments = new ArrayList<>();
 					for (String id : meta.getSegments().split(",")) {
 						ReportDescriptionSegment seg = new ReportDescriptionSegment();
@@ -150,9 +150,10 @@ public class OmnitureInput extends BaseStep implements StepInterface {
 					}
 					desc.setSegments(descSegments);
 				}
-			  if(!meta.getDateGranularity().equals("")) {
-			    desc.setDateGranularity(ReportDescriptionDateGranularity.valueOf(meta.getDateGranularity()));
-			  }
+			    if ( meta.getDateGranularity() != null && !meta.getDateGranularity().equals("") ){
+			      desc.setDateGranularity(ReportDescriptionDateGranularity.valueOf(meta.getDateGranularity()));
+			    }
+			    
 		      ReportMethods reportMethods = new ReportMethods(data.client);
 		      ReportResponse reportResponse = null;
 		      try {

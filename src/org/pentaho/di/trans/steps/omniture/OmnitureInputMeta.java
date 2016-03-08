@@ -188,12 +188,12 @@ public class OmnitureInputMeta extends BaseStepMeta implements StepMetaInterface
     elements = "page";
     metrics = "visits";
     DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
-    Calendar calStart = Calendar.getInstance();
-    calStart.add(Calendar.DATE, -1);    
-    startDate = dateFormat.format(calStart.getTime());
     Calendar calEnd = Calendar.getInstance();
-    calEnd.add(Calendar.DATE, -31);  
+    calEnd.add(Calendar.DATE, -1);    
     endDate = dateFormat.format(calEnd.getTime());
+    Calendar calStart = Calendar.getInstance();
+    calStart.add(Calendar.DATE, -31);  
+    startDate = dateFormat.format(calStart.getTime());
     dateGranularity = "DAY";
     segments = "";
     allocate( 0 );

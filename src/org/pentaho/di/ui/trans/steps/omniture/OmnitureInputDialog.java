@@ -808,7 +808,8 @@ private void getReportSuiteIdsList() {
 		  desc.setReportSuiteID(realReportSuiteId);
 		  desc.setDateFrom(realStartDate); 
 		  desc.setDateTo(realEndDate);
-	      // parse lists of elements, metrics and segments
+		  
+	      // parse lists of elements, metrics
 		    List<ReportDescriptionMetric> descMetrics = new ArrayList<>();
 			for (String id : realMetrics.split(",")) {
 				ReportDescriptionMetric metric = new ReportDescriptionMetric();
@@ -816,16 +817,15 @@ private void getReportSuiteIdsList() {
 				descMetrics.add(metric);
 			}
 			desc.setMetrics(descMetrics);
-			if(!realElements.equals("")){
-				List<ReportDescriptionElement> descElems = new ArrayList<>();
-				for (String id : realElements.split(",")) {
-					ReportDescriptionElement elem = new ReportDescriptionElement();
-					elem.setId(id);
-					descElems.add(elem);
-				}
-				desc.setElements(descElems);
+			List<ReportDescriptionElement> descElems = new ArrayList<>();
+			for (String id : realElements.split(",")) {
+				ReportDescriptionElement elem = new ReportDescriptionElement();
+				elem.setId(id);
+				descElems.add(elem);
 			}
-			if(!realSegments.equals("")){
+			desc.setElements(descElems);
+			
+			if ( realSegments != null && !realSegments.equals("") ){
 				List<ReportDescriptionSegment> descSegments = new ArrayList<>();
 				for (String id : realSegments.split(",")) {
 					ReportDescriptionSegment seg = new ReportDescriptionSegment();
@@ -834,9 +834,10 @@ private void getReportSuiteIdsList() {
 				}
 				desc.setSegments(descSegments);
 			}
-		  if(!realDateGranularity.equals("")) {
-			 desc.setDateGranularity(ReportDescriptionDateGranularity.valueOf(realDateGranularity));
-		  }
+			if ( realDateGranularity != null && !realDateGranularity.equals("") ){
+				desc.setDateGranularity(ReportDescriptionDateGranularity.valueOf(realDateGranularity));
+		    }
+			
 		  ReportMethods reportMethods = new ReportMethods(client);
 		  int reportId = 0;
 		  ReportResponse response = null;
