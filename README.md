@@ -12,7 +12,9 @@ A Kettle Plugin for Omniture
 
 The final folder structure should be:
 
+```
 +-- pdi/data-integrations/plugins/pdi-omniture-plugin
 |   +-- pdi-omniture-plugin.jar
 |   +-- lib
-|       +-- ..All .jar files in /lib folder
+|       +-- ...All .jar files in /lib folder
+```
